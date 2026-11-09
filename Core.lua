@@ -61,6 +61,7 @@ local function collect(level, view)
   local key = pet and class .. "_PET" or class
   local data = ns.Data[key] or {}
   local fix = EAD_SkillPreviewDB.fix[key] or {} -- correções vistas no treinador
+  local confirmed = EAD_SkillPreviewDB.seen[key] or {} -- preços que já batiam no treinador
   local learnedHere = EAD_SkillPreviewDB.learned[charKey()] -- o que o treinador mostrou como aprendido
   local out = { now = {}, soon = {}, learned = {} }
   local function add(id, lvl, cost)
@@ -68,7 +69,8 @@ local function collect(level, view)
     if isKnown(id) or (pet and petKnown(id)) or learnedHere[id] then list = out.learned
     elseif lvl <= level then list = out.now
     else list = out.soon end
-    list[#list + 1] = { id = id, lvl = lvl, cost = cost }
+    -- checked: preço confirmado num treinador (corrigido ou igual ao do Wowhead); senão é estimativa
+    list[#list + 1] = { id = id, lvl = lvl, cost = cost, checked = fix[id] ~= nil or confirmed[id] == true }
   end
   local seen, extra = {}, false
   for i = 1, #data, 4 do
@@ -221,6 +223,8 @@ local function checkTrainer(silent)
   for i = 1, #data, 4 do base[data[i]] = { lvl = data[i + 1], cost = data[i + 2], mask = data[i + 3] } end
   EAD_SkillPreviewDB.fix[key] = EAD_SkillPreviewDB.fix[key] or {}
   local fix = EAD_SkillPreviewDB.fix[key]
+  EAD_SkillPreviewDB.seen[key] = EAD_SkillPreviewDB.seen[key] or {}
+  local seen = EAD_SkillPreviewDB.seen[key]
 
   -- 2ª passada: acha cada magia na lista escolhida e compara
   local fixed, added, removed, offered = 0, 0, 0, {}
@@ -241,6 +245,7 @@ local function checkTrainer(silent)
         fix[id] = { lvl = s.lvl, cost = s.cost }
       else
         fix[id] = nil -- jogo e Wowhead batem
+        seen[id] = true -- preço conferido no treinador
       end
     end
   end
@@ -477,6 +482,10 @@ local function getRow(i)
   r:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetSpellByID(self.spellID)
+    if self.estimated then
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddLine(L.PRICE_ESTIMATED, T.muted[1], T.muted[2], T.muted[3], true)
+    end
     if self.teach then
       GameTooltip:AddLine(" ")
       GameTooltip:AddLine(L.TEACH_PET_HINT, T.teach[1], T.teach[2], T.teach[3], true)
@@ -515,7 +524,7 @@ function panel:Refresh()
   local now, soon, learned = lists.now, lists.soon, lists.learned
   local y, nRow, nHead = 0, 0, 0
   local collapsed = EAD_SkillPreviewDB.collapsed
-  local function header(text, kind, total, color)
+  local function header(text, kind, total, color, estimated)
     nHead = nHead + 1
     local h = getHeader(nHead)
     color = color or T.muted
@@ -526,7 +535,8 @@ function panel:Refresh()
     h.text:SetTextColor(unpack(color))
     h.strip:SetColorTexture(color[1], color[2], color[3], 1)
     h.line:SetColorTexture(color[1], color[2], color[3], 0.35)
-    h.total:SetText(total and total > 0 and coinText(total) or "")
+    h.total:SetText(total and total > 0 and ((estimated and "|cff999999~|r " or "") .. coinText(total)) or "")
+    h.total:SetAlpha(estimated and 0.5 or 1)
     h.toggle:SetShown(kind ~= nil)
     h.toggle:SetTexture(collapsed[kind] and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
     h:EnableMouse(kind ~= nil)
@@ -539,6 +549,7 @@ function panel:Refresh()
       nRow = nRow + 1
       local r = getRow(nRow)
       r.spellID, r.teach = e.id, e.teach
+      r.estimated = e.cost > 0 and not e.checked and not e.teach
       r:ClearAllPoints()
       r:SetPoint("TOPLEFT", 0, -y)
       r.icon:SetTexture(C_Spell.GetSpellTexture(e.id) or 134400)
@@ -553,7 +564,14 @@ function panel:Refresh()
         r.level:SetText(L.LEVEL:format(e.lvl))
         r.level:SetTextColor(unpack(T.muted))
       end
-      r.price:SetText(e.cost > 0 and coinText(e.cost) or "|cff666666—|r")
+      r.price:SetAlpha(r.estimated and 0.5 or 1) -- estimativa: preço inteiro apagado, moedas incluídas
+      if e.cost <= 0 then
+        r.price:SetText("|cff666666—|r")
+      elseif r.estimated then
+        r.price:SetText("|cff999999~|r " .. coinText(e.cost)) -- veio do Wowhead, ainda não conferido
+      else
+        r.price:SetText(coinText(e.cost))
+      end
       if e.teach then
         r.bg:SetColorTexture(T.teach[1], T.teach[2], T.teach[3], n % 2 == 0 and 0.12 or 0.08)
       elseif kind == "now" then
@@ -568,10 +586,14 @@ function panel:Refresh()
   local function section(list, kind, color, title, emptyNote)
     if nHead > 0 then y = y + 8 end
     local total = 0
-    for _, e in ipairs(list) do total = total + e.cost end
+    local estimated = false
+    for _, e in ipairs(list) do
+      total = total + e.cost
+      if e.cost > 0 and not e.checked and not e.teach then estimated = true end
+    end
     local text = ("%s (%d)"):format(title, #list)
     if #list == 0 and emptyNote then text = text .. " |cff999999— " .. emptyNote .. "|r" end
-    header(text, kind, total, color)
+    header(text, kind, total, color, estimated)
     if not collapsed[kind] then addRows(list, kind) end
   end
 
@@ -591,6 +613,8 @@ local filter = CreateFrame("DropdownButton", nil, panel, "WowStyle1FilterDropdow
 filter:SetPoint("TOPRIGHT", -12, -42)
 filter:SetText(L.FILTER)
 filter:SetupMenu(function(_, root)
+  -- o jogo monta o menu já na criação do botão, antes de as configurações salvas carregarem
+  if not EAD_SkillPreviewDB then return end
   local F = EAD_SkillPreviewDB.filters
   local function opt(text, key)
     root:CreateCheckbox(text, function() return F[key] end, function()
@@ -719,6 +743,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
     EAD_SkillPreviewDB.view = EAD_SkillPreviewDB.view or "char"
     EAD_SkillPreviewDB.fix = EAD_SkillPreviewDB.fix or {}
     EAD_SkillPreviewDB.learned = EAD_SkillPreviewDB.learned or {}
+    EAD_SkillPreviewDB.seen = EAD_SkillPreviewDB.seen or {} -- preços conferidos que já batiam com o Wowhead
     EAD_SkillPreviewDB.petSpell = EAD_SkillPreviewDB.petSpell or {} -- magia do caçador -> magia no livro do pet
     -- v2: magias do treinador de pet gravadas na lista do personagem; v3: Treinamento de Bestas lido como
     -- treinador (pontos de treinamento virando cobre); v4: magias de pet não associadas; v5: situação lida na posição errada (tudo virava aprendido). Descarta as correções e reconfere no próximo treinador.

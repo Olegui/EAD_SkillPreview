@@ -27,4 +27,5 @@ ns.L = {
   TEACH_PET = "Bought, but your pet has not learned it yet",
   TEACH_PET_HINT = "Use Beast Training to teach it to your pet.",
   SEARCH = "Search",
+  PRICE_ESTIMATED = "Estimated price. Open the trainer to confirm.",
 }
