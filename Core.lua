@@ -45,6 +45,13 @@ local function hasPetData()
   return ns.Data[class .. "_PET"] ~= nil
 end
 
+-- chave do personagem para o que é por personagem (o resto é compartilhado por classe)
+local function charKey()
+  local key = UnitName("player") .. "-" .. GetRealmName()
+  EAD_SkillPreviewDB.learned[key] = EAD_SkillPreviewDB.learned[key] or {}
+  return key
+end
+
 -- devolve listas {id, lvl, cost} de "agora", "próximas" e "aprendidas", em ordem de nível
 -- view: "char" (personagem) ou "pet"
 local function collect(level, view)
@@ -54,10 +61,11 @@ local function collect(level, view)
   local key = pet and class .. "_PET" or class
   local data = ns.Data[key] or {}
   local fix = EAD_SkillPreviewDB.fix[key] or {} -- correções vistas no treinador
+  local learnedHere = EAD_SkillPreviewDB.learned[charKey()] -- o que o treinador mostrou como aprendido
   local out = { now = {}, soon = {}, learned = {} }
   local function add(id, lvl, cost)
     local list
-    if isKnown(id) or (pet and petKnown(id)) then list = out.learned
+    if isKnown(id) or (pet and petKnown(id)) or learnedHere[id] then list = out.learned
     elseif lvl <= level then list = out.now
     else list = out.soon end
     list[#list + 1] = { id = id, lvl = lvl, cost = cost }
@@ -95,71 +103,128 @@ local function checkTrainer()
   local _, _, raceID = UnitRace("player")
   local keys = { class, class .. "_PET" }
 
-  -- índice de tudo que já conhecemos: id -> chave da lista; e nome traduzido -> id, para quando o jogo não der o ID
-  local owner, byName = {}, {}
+  -- índices por lista. O jogo nem sempre devolve o mesmo ID que o Wowhead, nem tem o texto do grau carregado,
+  -- então a magia do treinador é procurada por: nome+grau, nome+nível, nome+nº do grau (só pets) e, por fim, ID.
+  local owner, ownerByName, idx = {}, {}, {}
   for _, key in ipairs(keys) do
-    local data = ns.Data[key] or {}
+    local ix = { label = {}, lvl = {}, ord = {} }
+    idx[key] = ix
+    local data, count = ns.Data[key] or {}, {}
     for i = 1, #data, 4 do
-      owner[data[i]] = key
-      byName[spellLabel(data[i])] = data[i]
-    end
-    for id in pairs(EAD_SkillPreviewDB.fix[key] or {}) do owner[id] = owner[id] or key end
-  end
-
-  local services, votes, maxLvl = {}, {}, 0
-  for i = 1, GetNumTrainerServices() do
-    local name, rank, kind = GetTrainerServiceInfo(i)
-    if name and kind ~= "header" then
-      local label = (rank and rank ~= "") and (name .. " (" .. rank .. ")") or name
-      -- prefere o ID que já está na lista; o tooltip do pet pode trazer o ID da magia do pet em vez da que o caçador aprende
-      local tipID = serviceSpellID(i)
-      local id = (tipID and owner[tipID]) and tipID or byName[label] or tipID
-      if id then
-        local lvl, cost = GetTrainerServiceLevelReq(i) or 0, GetTrainerServiceCost(i) or 0
-        services[#services + 1] = { id = id, lvl = lvl, cost = cost }
-        if owner[id] then votes[owner[id]] = (votes[owner[id]] or 0) + 1 end
-        maxLvl = math.max(maxLvl, lvl)
+      local id, lvl = data[i], data[i + 1]
+      owner[id] = key
+      ix.label[spellLabel(id)] = id
+      local n = C_Spell.GetSpellName(id)
+      if n then
+        ownerByName[n] = ownerByName[n] or key
+        ix.lvl[n .. "@" .. lvl] = ix.lvl[n .. "@" .. lvl] or id
+        count[n] = (count[n] or 0) + 1 -- Data.lua vem em ordem de nível: 1ª ocorrência = grau 1, e assim por diante
+        ix.ord[n .. "#" .. count[n]] = id
       end
     end
   end
-  if #services == 0 then
-    say(L.TRAINER_CHECKED:format(0, 0, 0, 0)) -- diagnóstico: o treinador abriu mas nada foi reconhecido
+
+  local function match(key, s)
+    local ix = idx[key]
+    local rn = s.rank and tonumber(s.rank:match("%d+"))
+    -- nº do grau só nos pets: nas classes o grau 1 de nível 1 não está na lista, e a contagem sairia deslocada
+    return ix.label[s.label]
+      or (s.lvl > 0 and ix.lvl[s.name .. "@" .. s.lvl])
+      or (rn and key:find("_PET$") and ix.ord[s.name .. "#" .. rn])
+      or (s.tipID and owner[s.tipID] == key and s.tipID)
+      or s.tipID
+  end
+
+  local function readServices()
+    local list = {}
+    for i = 1, GetNumTrainerServices() do
+      local name, a, b = GetTrainerServiceInfo(i)
+      -- Classic: nome, grau, situação. Forever: nome, situação, ícone (sem o grau).
+      local rank, kind
+      if a == "available" or a == "unavailable" or a == "used" or a == "header" then kind = a
+      else rank, kind = a, b end
+      local tipID = serviceSpellID(i)
+      if (not rank or rank == "") and tipID and C_Spell.GetSpellSubtext then rank = C_Spell.GetSpellSubtext(tipID) end
+      if name and kind ~= "header" then
+        list[#list + 1] = {
+          name = name,
+          rank = rank,
+          label = (rank and rank ~= "") and (name .. " (" .. rank .. ")") or name,
+          tipID = tipID,
+          used = kind == "used",
+          lvl = GetTrainerServiceLevelReq(i) or 0,
+          cost = GetTrainerServiceCost(i) or 0,
+        }
+      end
+    end
+    return list
+  end
+
+  local learnedHere = EAD_SkillPreviewDB.learned[charKey()]
+
+  -- Treinamento de Bestas (caçador ensinando o pet): usa a mesma janela de treinador, mas sem NPC e com custo em
+  -- pontos de treinamento. Não é treinador; só serve para saber o que o caçador já comprou.
+  if not UnitExists("npc") or UnitIsUnit("npc", "pet") then
+    for _, s in ipairs(readServices()) do
+      local id = match(keys[2], s)
+      if id and owner[id] == keys[2] then learnedHere[id] = true end
+    end
     return
   end
 
-  -- treinador de classe ou de pet: a lista com mais magias reconhecidas
-  local key = (votes[keys[2]] or 0) > (votes[keys[1]] or 0) and keys[2] or keys[1]
+  -- 1ª passada: lê o treinador e vota se ele é de classe ou de pet, pelo nome da magia (mais confiável que o ID)
+  local raw, votes, maxLvl = readServices(), {}, 0
+  for _, s in ipairs(raw) do
+    local who = ownerByName[s.name] or (s.tipID and owner[s.tipID])
+    if who then votes[who] = (votes[who] or 0) + 1 end
+    maxLvl = math.max(maxLvl, s.lvl)
+  end
+  local key
+  if (votes[keys[2]] or 0) > (votes[keys[1]] or 0) then key = keys[2]
+  elseif (votes[keys[1]] or 0) > 0 then key = keys[1] end
+  if not key then
+    -- nada reconhecido: melhor não gravar nada do que jogar magias na lista errada
+    say(L.TRAINER_CHECKED:format(#raw, 0, 0, 0))
+    return
+  end
+
   local data = ns.Data[key] or {}
   local base = {}
   for i = 1, #data, 4 do base[data[i]] = { lvl = data[i + 1], cost = data[i + 2], mask = data[i + 3] } end
   EAD_SkillPreviewDB.fix[key] = EAD_SkillPreviewDB.fix[key] or {}
   local fix = EAD_SkillPreviewDB.fix[key]
 
+  -- 2ª passada: acha cada magia na lista escolhida e compara
   local fixed, added, removed, offered = 0, 0, 0, {}
-  for _, s in ipairs(services) do
-    offered[s.id] = true
-    local b = base[s.id]
-    if not b then
-      if not fix[s.id] then added = added + 1 end
-      fix[s.id] = { lvl = s.lvl, cost = s.cost }
-    elseif b.lvl ~= s.lvl or b.cost ~= s.cost then
-      if not fix[s.id] then fixed = fixed + 1 end
-      fix[s.id] = { lvl = s.lvl, cost = s.cost }
-    else
-      fix[s.id] = nil -- jogo e Wowhead batem
+  for _, s in ipairs(raw) do
+    local id = match(key, s)
+    if id then
+      offered[id] = true
+      local b = base[id]
+      if s.used then
+        learnedHere[id] = true -- já aprendida: o treinador mostra nível 0, então não serve para corrigir nível/preço
+      elseif not b then
+        if not fix[id] then added = added + 1 end
+        fix[id] = { lvl = s.lvl, cost = s.cost }
+      elseif b.lvl ~= s.lvl or b.cost ~= s.cost then
+        if not fix[id] then fixed = fixed + 1 end
+        fix[id] = { lvl = s.lvl, cost = s.cost }
+      else
+        fix[id] = nil -- jogo e Wowhead batem
+      end
     end
   end
   -- até o maior nível que o treinador mostrou, o que ele não oferece não é de treinador.
   -- Magias que você já sabe ficam de fora: o treinador pode esconder as aprendidas.
   for id, b in pairs(base) do
     if b.lvl <= maxLvl and not offered[id] and raceOk(b.mask, raceID) and fix[id] ~= false
-      and not isKnown(id) and not petKnown(id) then
+      and not isKnown(id) and not petKnown(id) and not learnedHere[id] then
       fix[id] = false
       removed = removed + 1
     end
   end
 
-  say(L.TRAINER_CHECKED:format(#services, fixed, added, removed))
+  say(L.TRAINER_CHECKED:format(#raw, fixed, added, removed))
 end
 
 -- quantas coisas dá pra comprar agora, somando personagem e pet
@@ -575,12 +640,23 @@ f:SetScript("OnEvent", function(_, event, arg1)
     EAD_SkillPreviewDB.collapsed = EAD_SkillPreviewDB.collapsed or {}
     EAD_SkillPreviewDB.view = EAD_SkillPreviewDB.view or "char"
     EAD_SkillPreviewDB.fix = EAD_SkillPreviewDB.fix or {}
+    EAD_SkillPreviewDB.learned = EAD_SkillPreviewDB.learned or {}
+    -- v2: magias do treinador de pet gravadas na lista do personagem; v3: Treinamento de Bestas lido como
+    -- treinador (pontos de treinamento virando cobre); v4: magias de pet não associadas; v5: situação lida na posição errada (tudo virava aprendido). Descarta as correções e reconfere no próximo treinador.
+    if (EAD_SkillPreviewDB.fixVersion or 1) < 5 then
+      EAD_SkillPreviewDB.fix = {}
+      EAD_SkillPreviewDB.learned = {}
+      EAD_SkillPreviewDB.fixVersion = 5
+    end
     placeButton()
   elseif event == "TRAINER_SHOW" then
     -- mostra também indisponíveis e já aprendidas, senão o treinador esconde parte da lista
     safe(function()
       if SetTrainerServiceTypeFilter then
-        for _, t in ipairs({ "available", "unavailable", "used" }) do SetTrainerServiceTypeFilter(t, 1) end
+        -- o Forever pede verdadeiro/falso; versões antigas aceitavam 1
+        for _, t in ipairs({ "available", "unavailable", "used" }) do
+          if not pcall(SetTrainerServiceTypeFilter, t, true) then pcall(SetTrainerServiceTypeFilter, t, 1) end
+        end
       end
       if ExpandTrainerSkillLine then ExpandTrainerSkillLine(0) end
     end)
@@ -598,4 +674,23 @@ f:SetScript("OnEvent", function(_, event, arg1)
 end)
 
 SLASH_EADSKILLPREVIEW1 = "/ead"
-SlashCmdList.EADSKILLPREVIEW = function() safe(toggle) end
+-- /ead debug: com um treinador aberto, mostra no chat o que o jogo devolve de cada serviço (para diagnosticar o Forever)
+local function debugTrainer()
+  local n = GetNumTrainerServices and GetNumTrainerServices() or 0
+  say(("debug: %d serviço(s), npc=%s"):format(n, tostring(UnitExists("npc"))))
+  local kinds = {}
+  for i = 1, n do
+    local name, rank, kind = GetTrainerServiceInfo(i) -- no Forever: nome, situação, ícone
+    kinds[tostring(kind)] = (kinds[tostring(kind)] or 0) + 1
+    if i <= 8 then
+      print(("  %d) %s | %s | kind=%s | lvl=%s | custo=%s | id=%s"):format(i, tostring(name), tostring(rank),
+        tostring(kind), tostring(GetTrainerServiceLevelReq(i)), tostring((GetTrainerServiceCost(i))),
+        tostring(serviceSpellID(i))))
+    end
+  end
+  for k, v in pairs(kinds) do print(("  kind %s: %d"):format(k, v)) end
+end
+
+SlashCmdList.EADSKILLPREVIEW = function(msg)
+  if msg == "debug" then safe(debugTrainer) else safe(toggle) end
+end
