@@ -1,0 +1,30 @@
+## Interface: 16001, 120105
+## Title: EAD - Skill Preview
+## Notes: Shows what your class trainer has for you now and at upcoming levels.
+## Notes-ptBR: Mostra o que o treinador da sua classe tem pra você agora e nos próximos níveis.
+## Notes-deDE: Zeigt, was dein Klassenlehrer jetzt und auf den nächsten Stufen für dich hat.
+## Notes-frFR: Affiche ce que votre maître de classe propose maintenant et aux prochains niveaux.
+## Notes-esES: Muestra lo que tu instructor de clase tiene para ti ahora y en los próximos niveles.
+## Notes-esMX: Muestra lo que tu instructor de clase tiene para ti ahora y en los próximos niveles.
+## Notes-itIT: Mostra cosa offre il tuo istruttore di classe ora e ai prossimi livelli.
+## Notes-ruRU: Показывает, что учитель вашего класса может предложить сейчас и на следующих уровнях.
+## Notes-koKR: 지금과 다음 레벨에서 직업 전문가에게 배울 수 있는 기술을 보여줍니다.
+## Notes-zhCN: 显示职业训练师现在和接下来等级可教给你的技能。
+## Notes-zhTW: 顯示職業訓練師現在和接下來等級可教給你的技能。
+## Version: 1.0.0
+## Author: Oleg (assantech.com.br)
+## IconTexture: Interface\Icons\INV_Misc_Book_09
+## SavedVariables: EAD_SkillPreviewDB
+
+Locales\enUS.lua
+Locales\ptBR.lua
+Locales\deDE.lua
+Locales\frFR.lua
+Locales\esES.lua
+Locales\itIT.lua
+Locales\ruRU.lua
+Locales\koKR.lua
+Locales\zhCN.lua
+Locales\zhTW.lua
+Data.lua
+Core.lua

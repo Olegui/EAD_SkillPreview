@@ -1,0 +1,25 @@
+local _, ns = ...
+if GetLocale() ~= "itIT" then return end
+local L = ns.L
+
+L.ERROR = "errore:"
+L.SPELL_N = "incantesimo n. %d"
+L.TRAINER_CHECKED = "Istruttore controllato: %d lette, %d corrette, %d nuove, %d non offerte dall'istruttore."
+L.LEVEL = "Livello %d"
+L.AVAILABLE = "Disponibili"
+L.UPCOMING = "Prossime"
+L.LEARNED = "Già apprese"
+L.NO_NEED = "non serve andare dall'istruttore"
+L.PICK_FILTER = "Seleziona qualcosa nel filtro."
+L.TITLE_LEVEL = "%s — livello %d"
+L.FILTER = "Filtro"
+L.UPCOMING_MAX = "Prossime (fino al livello massimo)"
+L.ALL = "Tutte le abilità"
+L.CHARACTER = "Personaggio"
+L.PET = "Famiglio"
+L.TT_NOW = "%d da imparare ora"
+L.TT_NOTHING = "Niente di nuovo dall'istruttore"
+L.TT_HINT = "Clic: apri  •  Trascina: sposta"
+L.ANNOUNCE = "%d abilità da imparare dall'istruttore."
+L.ANNOUNCE_HINT = "Clicca l'icona sulla minimappa o scrivi %s."
+L.CREDITS = "Sviluppato da %s"

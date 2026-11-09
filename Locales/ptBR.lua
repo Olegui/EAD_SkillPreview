@@ -1,0 +1,25 @@
+local _, ns = ...
+if GetLocale() ~= "ptBR" then return end
+local L = ns.L
+
+L.ERROR = "erro:"
+L.SPELL_N = "magia #%d"
+L.TRAINER_CHECKED = "treinador conferido: %d lida(s), %d corrigida(s), %d nova(s), %d que o treinador não oferece."
+L.LEVEL = "Nível %d"
+L.AVAILABLE = "Disponíveis"
+L.UPCOMING = "Próximas"
+L.LEARNED = "Já aprendidas"
+L.NO_NEED = "não precisa ir ao treinador"
+L.PICK_FILTER = "Marque algo no Filtro."
+L.TITLE_LEVEL = "%s — Nível %d"
+L.FILTER = "Filtro"
+L.UPCOMING_MAX = "Próximas (até o nível máximo)"
+L.ALL = "Todas as habilidades"
+L.CHARACTER = "Personagem"
+L.PET = "Pet"
+L.TT_NOW = "%d para aprender agora"
+L.TT_NOTHING = "Nada novo no treinador"
+L.TT_HINT = "Clique: abrir  •  Arraste: mover"
+L.ANNOUNCE = "%d habilidade(s) para aprender no treinador."
+L.ANNOUNCE_HINT = "Clique no ícone do minimapa ou digite %s."
+L.CREDITS = "Desenvolvido por %s"
