@@ -1,0 +1,25 @@
+local _, ns = ...
+if GetLocale() ~= "deDE" then return end
+local L = ns.L
+
+L.ERROR = "Fehler:"
+L.SPELL_N = "Zauber #%d"
+L.TRAINER_CHECKED = "Lehrer geprüft: %d gelesen, %d korrigiert, %d neu, %d nicht vom Lehrer angeboten."
+L.LEVEL = "Stufe %d"
+L.AVAILABLE = "Verfügbar"
+L.UPCOMING = "Demnächst"
+L.LEARNED = "Bereits erlernt"
+L.NO_NEED = "kein Lehrerbesuch nötig"
+L.PICK_FILTER = "Wähle etwas im Filter aus."
+L.TITLE_LEVEL = "%s — Stufe %d"
+L.FILTER = "Filter"
+L.UPCOMING_MAX = "Demnächst (bis zur Höchststufe)"
+L.ALL = "Alle Fähigkeiten"
+L.CHARACTER = "Charakter"
+L.PET = "Begleiter"
+L.TT_NOW = "%d jetzt erlernbar"
+L.TT_NOTHING = "Nichts Neues beim Lehrer"
+L.TT_HINT = "Klick: öffnen  •  Ziehen: verschieben"
+L.ANNOUNCE = "%d Fähigkeit(en) beim Lehrer erlernbar."
+L.ANNOUNCE_HINT = "Klicke auf das Minikarten-Symbol oder tippe %s."
+L.CREDITS = "Entwickelt von %s"

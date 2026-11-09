@@ -1,0 +1,25 @@
+local _, ns = ...
+if GetLocale() ~= "zhTW" then return end
+local L = ns.L
+
+L.ERROR = "錯誤："
+L.SPELL_N = "法術 #%d"
+L.TRAINER_CHECKED = "訓練師已核對：讀取 %d 個，修正 %d 個，新增 %d 個，訓練師未提供 %d 個。"
+L.LEVEL = "等級 %d"
+L.AVAILABLE = "可學習"
+L.UPCOMING = "即將解鎖"
+L.LEARNED = "已學會"
+L.NO_NEED = "無需去找訓練師"
+L.PICK_FILTER = "請在篩選中勾選項目。"
+L.TITLE_LEVEL = "%s — 等級 %d"
+L.FILTER = "篩選"
+L.UPCOMING_MAX = "即將解鎖（至最高等級）"
+L.ALL = "全部技能"
+L.CHARACTER = "角色"
+L.PET = "寵物"
+L.TT_NOW = "現在可學習 %d 個"
+L.TT_NOTHING = "訓練師處沒有新技能"
+L.TT_HINT = "點擊：開啟  •  拖曳：移動"
+L.ANNOUNCE = "訓練師處有 %d 個技能可學習。"
+L.ANNOUNCE_HINT = "點擊小地圖圖示或輸入 %s。"
+L.CREDITS = "開發者：%s"

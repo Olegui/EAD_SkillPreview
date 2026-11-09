@@ -1,0 +1,25 @@
+local _, ns = ...
+if GetLocale() ~= "frFR" then return end
+local L = ns.L
+
+L.ERROR = "erreur :"
+L.SPELL_N = "sort n°%d"
+L.TRAINER_CHECKED = "Maître vérifié : %d lu(s), %d corrigé(s), %d nouveau(x), %d non proposé(s) par le maître."
+L.LEVEL = "Niveau %d"
+L.AVAILABLE = "Disponibles"
+L.UPCOMING = "À venir"
+L.LEARNED = "Déjà apprises"
+L.NO_NEED = "inutile d'aller voir le maître"
+L.PICK_FILTER = "Cochez quelque chose dans le filtre."
+L.TITLE_LEVEL = "%s — niveau %d"
+L.FILTER = "Filtre"
+L.UPCOMING_MAX = "À venir (jusqu'au niveau max)"
+L.ALL = "Toutes les compétences"
+L.CHARACTER = "Personnage"
+L.PET = "Familier"
+L.TT_NOW = "%d à apprendre maintenant"
+L.TT_NOTHING = "Rien de nouveau chez le maître"
+L.TT_HINT = "Clic : ouvrir  •  Glisser : déplacer"
+L.ANNOUNCE = "%d compétence(s) à apprendre chez le maître."
+L.ANNOUNCE_HINT = "Cliquez sur l'icône de la minicarte ou tapez %s."
+L.CREDITS = "Développé par %s"

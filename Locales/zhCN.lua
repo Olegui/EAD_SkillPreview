@@ -1,0 +1,25 @@
+local _, ns = ...
+if GetLocale() ~= "zhCN" then return end
+local L = ns.L
+
+L.ERROR = "错误："
+L.SPELL_N = "法术 #%d"
+L.TRAINER_CHECKED = "训练师已核对：读取 %d 个，修正 %d 个，新增 %d 个，训练师未提供 %d 个。"
+L.LEVEL = "等级 %d"
+L.AVAILABLE = "可学习"
+L.UPCOMING = "即将解锁"
+L.LEARNED = "已学会"
+L.NO_NEED = "无需去找训练师"
+L.PICK_FILTER = "请在筛选中勾选项目。"
+L.TITLE_LEVEL = "%s — 等级 %d"
+L.FILTER = "筛选"
+L.UPCOMING_MAX = "即将解锁（至最高等级）"
+L.ALL = "全部技能"
+L.CHARACTER = "角色"
+L.PET = "宠物"
+L.TT_NOW = "现在可学习 %d 个"
+L.TT_NOTHING = "训练师处没有新技能"
+L.TT_HINT = "点击：打开  •  拖动：移动"
+L.ANNOUNCE = "训练师处有 %d 个技能可学习。"
+L.ANNOUNCE_HINT = "点击小地图图标或输入 %s。"
+L.CREDITS = "开发者：%s"

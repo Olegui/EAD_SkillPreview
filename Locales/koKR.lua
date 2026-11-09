@@ -1,0 +1,25 @@
+local _, ns = ...
+if GetLocale() ~= "koKR" then return end
+local L = ns.L
+
+L.ERROR = "오류:"
+L.SPELL_N = "주문 #%d"
+L.TRAINER_CHECKED = "전문가 확인: %d개 읽음, %d개 수정, %d개 신규, %d개는 전문가가 제공하지 않음."
+L.LEVEL = "레벨 %d"
+L.AVAILABLE = "배울 수 있음"
+L.UPCOMING = "예정"
+L.LEARNED = "이미 배움"
+L.NO_NEED = "전문가에게 갈 필요 없음"
+L.PICK_FILTER = "필터에서 항목을 선택하세요."
+L.TITLE_LEVEL = "%s — 레벨 %d"
+L.FILTER = "필터"
+L.UPCOMING_MAX = "예정 (최고 레벨까지)"
+L.ALL = "모든 기술"
+L.CHARACTER = "캐릭터"
+L.PET = "소환수"
+L.TT_NOW = "지금 배울 수 있는 기술 %d개"
+L.TT_NOTHING = "전문가에게 새로운 기술 없음"
+L.TT_HINT = "클릭: 열기  •  드래그: 이동"
+L.ANNOUNCE = "전문가에게 배울 수 있는 기술 %d개."
+L.ANNOUNCE_HINT = "미니맵 아이콘을 클릭하거나 %s 입력."
+L.CREDITS = "개발: %s"
