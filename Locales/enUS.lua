@@ -24,4 +24,7 @@ ns.L = {
   ANNOUNCE = "%d ability(ies) to learn at the trainer.",
   ANNOUNCE_HINT = "Click the minimap icon or type %s.",
   CREDITS = "Developed by %s",
+  TEACH_PET = "Bought, but your pet has not learned it yet",
+  TEACH_PET_HINT = "Use Beast Training to teach it to your pet.",
+  SEARCH = "Search",
 }

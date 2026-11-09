@@ -81,6 +81,28 @@ local function collect(level, view)
   for id, f in pairs(fix) do
     if f and not seen[id] then add(id, f.lvl, f.cost); extra = true end -- só existe no jogo
   end
+  -- Caçador: comprar no treinador de pet não ensina o pet; isso é feito depois no Treinamento de Feras.
+  -- O grau mais alto comprado de cada habilidade que o pet invocado ainda não sabe volta para "agora", com aviso.
+  local petSpell = EAD_SkillPreviewDB.petSpell
+  if pet and class == "HUNTER" and UnitExists("pet") then
+    local top = {}
+    for _, e in ipairs(out.learned) do
+      local n = C_Spell.GetSpellName(e.id) or e.id
+      if not top[n] or e.lvl > top[n].lvl then top[n] = e end
+    end
+    local keep = {}
+    for _, e in ipairs(out.learned) do
+      local p = petSpell[e.id] -- magia equivalente no livro do pet (vista no tooltip do treinador)
+      if top[C_Spell.GetSpellName(e.id) or e.id] == e and p and not petKnown(p) then
+        e.teach, e.cost = true, 0
+        table.insert(out.now, e)
+        extra = true
+      else
+        keep[#keep + 1] = e
+      end
+    end
+    out.learned = keep
+  end
   if extra then
     local byLevel = function(a, b) return a.lvl < b.lvl or (a.lvl == b.lvl and a.id < b.id) end
     for _, l in pairs(out) do table.sort(l, byLevel) end
@@ -97,7 +119,8 @@ local function serviceSpellID(i)
 end
 
 -- Compara o que o treinador oferece com a lista do Wowhead e guarda as diferenças em EAD_SkillPreviewDB.fix
-local function checkTrainer()
+-- silent: relê sem escrever no chat (usado a cada mudança na janela, como uma compra)
+local function checkTrainer(silent)
   if IsTradeskillTrainer and IsTradeskillTrainer() then return end
   local _, class = UnitClass("player")
   local _, _, raceID = UnitRace("player")
@@ -164,10 +187,14 @@ local function checkTrainer()
 
   -- Treinamento de Bestas (caçador ensinando o pet): usa a mesma janela de treinador, mas sem NPC e com custo em
   -- pontos de treinamento. Não é treinador; só serve para saber o que o caçador já comprou.
+  local petSpell = EAD_SkillPreviewDB.petSpell
   if not UnitExists("npc") or UnitIsUnit("npc", "pet") then
     for _, s in ipairs(readServices()) do
       local id = match(keys[2], s)
-      if id and owner[id] == keys[2] then learnedHere[id] = true end
+      if id and owner[id] == keys[2] then
+        learnedHere[id] = true
+        if s.tipID and s.tipID ~= id then petSpell[id] = s.tipID end
+      end
     end
     return
   end
@@ -184,7 +211,7 @@ local function checkTrainer()
   elseif (votes[keys[1]] or 0) > 0 then key = keys[1] end
   if not key then
     -- nada reconhecido: melhor não gravar nada do que jogar magias na lista errada
-    say(L.TRAINER_CHECKED:format(#raw, 0, 0, 0))
+    if not silent then say(L.TRAINER_CHECKED:format(#raw, 0, 0, 0)) end
     return
   end
 
@@ -200,6 +227,8 @@ local function checkTrainer()
     local id = match(key, s)
     if id then
       offered[id] = true
+      -- treinador de pet: o tooltip traz a magia do livro do pet, usada para saber se o pet já aprendeu
+      if key == keys[2] and s.tipID and s.tipID ~= id then petSpell[id] = s.tipID end
       local b = base[id]
       if s.used then
         learnedHere[id] = true -- já aprendida: o treinador mostra nível 0, então não serve para corrigir nível/preço
@@ -224,12 +253,18 @@ local function checkTrainer()
     end
   end
 
-  say(L.TRAINER_CHECKED:format(#raw, fixed, added, removed))
+  if not silent then say(L.TRAINER_CHECKED:format(#raw, fixed, added, removed)) end
 end
 
 -- quantas coisas dá pra comprar agora, somando personagem e pet
 local function countNow(level)
-  return #collect(level, "char").now + (hasPetData() and #collect(level, "pet").now or 0)
+  local n = #collect(level, "char").now
+  if hasPetData() then
+    for _, e in ipairs(collect(level, "pet").now) do
+      if not e.teach then n = n + 1 end -- "ensinar ao pet" não é compra no treinador
+    end
+  end
+  return n
 end
 
 ---------------------------------------------------------------- tema "EAD"
@@ -246,6 +281,7 @@ local T = {
   now     = { 0.40, 0.92, 0.55 },
   soon    = { 1.00, 0.82, 0.38 },
   learned = { 0.55, 0.55, 0.60 },
+  teach   = { 1.00, 0.60, 0.25 }, -- caçador comprou, pet ainda não aprendeu
 }
 local WHITE = "Interface\\Buttons\\WHITE8x8"
 
@@ -264,7 +300,7 @@ end
 local ROW_H = 36
 local WIDTH = 362 -- largura útil da lista
 local panel = CreateFrame("Frame", "EAD_SkillPreviewPanel", UIParent, "BackdropTemplate")
-panel:SetSize(400, 540)
+panel:SetSize(400, 570)
 panel:SetPoint("CENTER")
 panel:SetFrameStrata("HIGH")
 panel:SetBackdrop({
@@ -333,7 +369,19 @@ credits:SetPoint("BOTTOM", 0, 9)
 credits:SetText(L.CREDITS:format("Oleg") .. "  •  |cff" .. "47cce6" .. "assantech.com.br|r")
 
 local scroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
-scroll:SetPoint("TOPLEFT", 10, -72)
+scroll:SetPoint("TOPLEFT", 10, -102)
+
+-- busca em tempo real, logo abaixo das abas
+panel.search = CreateFrame("EditBox", nil, panel, "SearchBoxTemplate")
+panel.search:SetPoint("TOPLEFT", 18, -72)
+panel.search:SetPoint("TOPRIGHT", -14, -72)
+panel.search:SetHeight(22)
+panel.search:SetAutoFocus(false)
+if panel.search.Instructions then panel.search.Instructions:SetText(L.SEARCH) end
+panel.search:HookScript("OnTextChanged", function()
+  scroll:SetVerticalScroll(0)
+  safe(panel.Refresh)
+end)
 scroll:SetPoint("BOTTOMRIGHT", -22, 32)
 local content = CreateFrame("Frame", nil, scroll)
 content:SetSize(WIDTH, 1)
@@ -419,12 +467,19 @@ local function getRow(i)
   r.name:SetWordWrap(false)
   r.level = r:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
   r.level:SetPoint("BOTTOMLEFT", r.iconBorder, "BOTTOMRIGHT", 8, 1)
+  r.level:SetPoint("RIGHT", -60, 0) -- o aviso de pet é longo: corta com "..." antes do preço
+  r.level:SetJustifyH("LEFT")
+  r.level:SetWordWrap(false)
   r.level:SetTextColor(unpack(T.muted))
   r.price = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   r.price:SetPoint("RIGHT", -8, 0)
   r:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetSpellByID(self.spellID)
+    if self.teach then
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddLine(L.TEACH_PET_HINT, T.teach[1], T.teach[2], T.teach[3], true)
+    end
     GameTooltip:Show()
   end)
   r:SetScript("OnLeave", GameTooltip_Hide)
@@ -445,6 +500,17 @@ function panel:Refresh()
     b.text:SetTextColor(unpack(on and T.text or T.muted))
   end
   local lists = collect(level, view) -- não chamar de L: L são os textos traduzidos
+  -- busca: mantém só as habilidades cujo nome contém o texto digitado (sem diferenciar maiúsculas)
+  local q = panel.search and panel.search:GetText():lower() or ""
+  if q ~= "" then
+    for k, list in pairs(lists) do
+      local keep = {}
+      for _, e in ipairs(list) do
+        if spellLabel(e.id):lower():find(q, 1, true) then keep[#keep + 1] = e end
+      end
+      lists[k] = keep
+    end
+  end
   local now, soon, learned = lists.now, lists.soon, lists.learned
   local y, nRow, nHead = 0, 0, 0
   local collapsed = EAD_SkillPreviewDB.collapsed
@@ -471,7 +537,7 @@ function panel:Refresh()
     for n, e in ipairs(list) do
       nRow = nRow + 1
       local r = getRow(nRow)
-      r.spellID = e.id
+      r.spellID, r.teach = e.id, e.teach
       r:ClearAllPoints()
       r:SetPoint("TOPLEFT", 0, -y)
       r.icon:SetTexture(C_Spell.GetSpellTexture(e.id) or 134400)
@@ -479,9 +545,17 @@ function panel:Refresh()
       r:SetAlpha(kind == "learned" and 0.55 or 1)
       r.name:SetText(spellLabel(e.id))
       r.name:SetTextColor(unpack(kind == "now" and T.text or T.muted))
-      r.level:SetText(L.LEVEL:format(e.lvl))
+      if e.teach then
+        r.level:SetText(L.TEACH_PET)
+        r.level:SetTextColor(unpack(T.teach))
+      else
+        r.level:SetText(L.LEVEL:format(e.lvl))
+        r.level:SetTextColor(unpack(T.muted))
+      end
       r.price:SetText(e.cost > 0 and coinText(e.cost) or "|cff666666—|r")
-      if kind == "now" then
+      if e.teach then
+        r.bg:SetColorTexture(T.teach[1], T.teach[2], T.teach[3], n % 2 == 0 and 0.12 or 0.08)
+      elseif kind == "now" then
         r.bg:SetColorTexture(T.now[1], T.now[2], T.now[3], n % 2 == 0 and 0.10 or 0.06)
       else
         r.bg:SetColorTexture(1, 1, 1, n % 2 == 0 and 0.035 or 0.01)
@@ -625,6 +699,7 @@ local function announce(level)
   end
 end
 
+local trainerPending = false
 local f = CreateFrame("Frame")
 f:RegisterEvent("ADDON_LOADED")
 f:RegisterEvent("PLAYER_LOGIN")
@@ -632,6 +707,8 @@ f:RegisterEvent("PLAYER_LEVEL_UP")
 f:RegisterEvent("SPELLS_CHANGED")
 f:RegisterUnitEvent("UNIT_PET", "player")
 f:RegisterEvent("TRAINER_SHOW")
+f:RegisterEvent("TRAINER_UPDATE")
+f:RegisterEvent("PET_BAR_UPDATE")
 f:SetScript("OnEvent", function(_, event, arg1)
   if event == "ADDON_LOADED" and arg1 == ADDON then
     EAD_SkillPreviewDB = EAD_SkillPreviewDB or {}
@@ -641,6 +718,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
     EAD_SkillPreviewDB.view = EAD_SkillPreviewDB.view or "char"
     EAD_SkillPreviewDB.fix = EAD_SkillPreviewDB.fix or {}
     EAD_SkillPreviewDB.learned = EAD_SkillPreviewDB.learned or {}
+    EAD_SkillPreviewDB.petSpell = EAD_SkillPreviewDB.petSpell or {} -- magia do caçador -> magia no livro do pet
     -- v2: magias do treinador de pet gravadas na lista do personagem; v3: Treinamento de Bestas lido como
     -- treinador (pontos de treinamento virando cobre); v4: magias de pet não associadas; v5: situação lida na posição errada (tudo virava aprendido). Descarta as correções e reconfere no próximo treinador.
     if (EAD_SkillPreviewDB.fixVersion or 1) < 5 then
@@ -668,8 +746,17 @@ f:SetScript("OnEvent", function(_, event, arg1)
     safe(announce, arg1) -- arg1 é o nível novo; UnitLevel ainda pode estar no antigo
   elseif event == "PLAYER_LOGIN" then
     C_Timer.After(3, function() safe(announce, UnitLevel("player")) end) -- espera o grimório carregar
-  elseif (event == "SPELLS_CHANGED" or event == "UNIT_PET") and panel:IsShown() then
-    safe(panel.Refresh) -- aprendeu algo ou trocou de pet com o painel aberto
+  elseif event == "TRAINER_UPDATE" and not trainerPending then
+    -- comprou no treinador ou ensinou o pet no Treinamento de Feras: relê em silêncio e atualiza.
+    -- A janela dispara vários avisos seguidos; junta tudo numa leitura só.
+    trainerPending = true
+    C_Timer.After(0.3, function()
+      trainerPending = false
+      safe(checkTrainer, true)
+      if panel:IsShown() then safe(panel.Refresh) end
+    end)
+  elseif (event == "SPELLS_CHANGED" or event == "UNIT_PET" or event == "PET_BAR_UPDATE") and panel:IsShown() then
+    safe(panel.Refresh) -- aprendeu algo, trocou de pet ou o pet aprendeu algo com o painel aberto
   end
 end)
 
