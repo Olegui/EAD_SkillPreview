@@ -141,7 +141,8 @@ local function checkTrainer(silent)
       if n then
         ownerByName[n] = ownerByName[n] or key
         ix.lvl[n .. "@" .. lvl] = ix.lvl[n .. "@" .. lvl] or id
-        count[n] = (count[n] or 0) + 1 -- Data.lua vem em ordem de nível: 1ª ocorrência = grau 1, e assim por diante
+        -- Data.lua vem em ordem de nível: 1ª ocorrência = grau 1 (ou o grau de FirstRank), e assim por diante
+        count[n] = ns.FirstRank[id] or ((count[n] or 0) + 1)
         ix.ord[n .. "#" .. count[n]] = id
       end
     end
@@ -725,6 +726,11 @@ f:SetScript("OnEvent", function(_, event, arg1)
       EAD_SkillPreviewDB.fix = {}
       EAD_SkillPreviewDB.learned = {}
       EAD_SkillPreviewDB.fixVersion = 5
+    end
+    -- v6: graus do Rosnar contados a partir do 1 (o Grau 2 virava o Grau 4); só as marcações de aprendido estavam erradas
+    if EAD_SkillPreviewDB.fixVersion < 6 then
+      EAD_SkillPreviewDB.learned = {}
+      EAD_SkillPreviewDB.fixVersion = 6
     end
     placeButton()
   elseif event == "TRAINER_SHOW" then
