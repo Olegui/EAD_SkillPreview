@@ -25,3 +25,41 @@ WARLOCK_PET={6307,4,100,0,7799,8,100,0,4511,12,600,0,2947,14,900,0,7804,14,900,0
 ns.FirstRank = {
   [14923] = 3, -- Rosnar: graus 1 e 2 já vêm com o pet
 }
+
+-- Graus vendidos no treinador de habilidades cujo grau 1 vem de um talento (o grau 1 não existe na lista de
+-- habilidades do Wowhead). Só aparecem como compráveis se o personagem já conhece a habilidade (escolheu o talento).
+-- Gerado do Wowhead (seção Forever) em 2026-11-09.
+ns.TalentRanks = {
+  [21551]=true, [21552]=true, [21553]=true, -- warrior: Mortal Strike
+  [23892]=true, [23893]=true, [23894]=true, -- warrior: Bloodthirst
+  [23923]=true, [23924]=true, [23925]=true, -- warrior: Shield Slam
+  [20183]=true, [20411]=true, [20412]=true, [20413]=true, [20414]=true, -- paladin: Judgement of Fury
+  [20473]=true, [20929]=true, [20930]=true, -- paladin: Holy Shock
+  [20915]=true, [20918]=true, [20919]=true, [20920]=true, -- paladin: Seal of Command
+  [20927]=true, [20928]=true, [1239570]=true, -- paladin: Holy Shield
+  [1311590]=true, [1311595]=true, -- paladin: Light's Vigil
+  [1299348]=true, [19506]=true, [20905]=true, [20906]=true, -- hunter: Trueshot Aura
+  [1242634]=true, [20909]=true, [20910]=true, -- hunter: Counterattack
+  [1293525]=true, [1293526]=true, [1293527]=true, -- hunter: Summon Hawk
+  [1310785]=true, [1310786]=true, -- hunter: Sniper Shot
+  [1325756]=true, [1325757]=true, [1325758]=true, -- rogue: Death Mark
+  [15430]=true, [15431]=true, [27799]=true, [27800]=true, [27801]=true, -- priest: Holy Nova
+  [17311]=true, [17312]=true, [17313]=true, [17314]=true, [18807]=true, -- priest: Mind Flay
+  [1240826]=true, [1240827]=true, -- priest: Prayer of Mending
+  [17354]=true, [17359]=true, [1325256]=true, -- shaman: Mana Tide Totem
+  [1239242]=true, [1239243]=true, -- shaman: Riptide
+  [12505]=true, [12522]=true, [12523]=true, [12524]=true, [12525]=true, [12526]=true, [18809]=true, -- mage: Pyroblast
+  [13018]=true, [13019]=true, [13020]=true, [13021]=true, -- mage: Blast Wave
+  [13031]=true, [13032]=true, [13033]=true, -- mage: Ice Barrier
+  [400640]=true, [1240044]=true, [1240045]=true, [1240046]=true, [1240047]=true, -- mage: Ice Lance
+  [1239696]=true, [1239697]=true, [1239699]=true, [1239700]=true, -- mage: Arcane Blast
+  [1326080]=true, [1326081]=true, [1326082]=true, -- mage: Arcane Wrath
+  [1293818]=true, [17962]=true, [18930]=true, [18931]=true, [18932]=true, -- warlock: Conflagrate
+  [18867]=true, [18868]=true, [18869]=true, [18870]=true, [18871]=true, -- warlock: Shadowburn
+  [18879]=true, [18880]=true, [18881]=true, -- warlock: Siphon Life
+  [1293812]=true, [1293813]=true, -- warlock: Incinerate
+  [24974]=true, [24975]=true, [24976]=true, [24977]=true, -- druid: Insect Swarm
+  [1328616]=true, [414644]=true, [1235826]=true, [1235827]=true, -- druid: Lacerate
+  [1238069]=true, [1238070]=true, -- druid: Primal Bite
+  [1238214]=true, [1238215]=true, -- druid: Wild Growth
+}

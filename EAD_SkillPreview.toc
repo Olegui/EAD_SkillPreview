@@ -11,7 +11,7 @@
 ## Notes-koKR: 지금과 다음 레벨에서 직업 전문가에게 배울 수 있는 기술을 보여줍니다.
 ## Notes-zhCN: 显示职业训练师现在和接下来等级可教给你的技能。
 ## Notes-zhTW: 顯示職業訓練師現在和接下來等級可教給你的技能。
-## Version: 1.0.1
+## Version: 1.0.2
 ## Author: Oleg (assantech.com.br)
 ## IconTexture: Interface\Icons\INV_Misc_Book_09
 ## SavedVariables: EAD_SkillPreviewDB

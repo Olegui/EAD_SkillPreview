@@ -28,4 +28,6 @@ ns.L = {
   TEACH_PET_HINT = "Use Beast Training to teach it to your pet.",
   SEARCH = "Search",
   PRICE_ESTIMATED = "Estimated price. Open the trainer to confirm.",
+  TALENT_REQUIRED = "Requires a talent you have not chosen",
+  TALENT_HINT = "This ability can only be learned after choosing the talent that unlocks it.",
 }
