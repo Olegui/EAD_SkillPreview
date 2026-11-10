@@ -45,6 +45,24 @@ local function hasPetData()
   return ns.Data[class .. "_PET"] ~= nil
 end
 
+-- nomes de todas as magias que o personagem conhece (grimório); vazio se a API não existir
+local function knownSpellNames()
+  local names = {}
+  if not (C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines and Enum.SpellBookSpellBank) then return names end
+  local bank = Enum.SpellBookSpellBank.Player
+  local future = Enum.SpellBookItemType and Enum.SpellBookItemType.FutureSpell
+  for line = 1, C_SpellBook.GetNumSpellBookSkillLines() do
+    local info = C_SpellBook.GetSpellBookSkillLineInfo(line)
+    if info then
+      for slot = info.itemIndexOffset + 1, info.itemIndexOffset + info.numSpellBookItems do
+        local item = C_SpellBook.GetSpellBookItemInfo(slot, bank)
+        if item and item.name and item.itemType ~= future then names[item.name] = true end
+      end
+    end
+  end
+  return names
+end
+
 -- chave do personagem para o que é por personagem (o resto é compartilhado por classe)
 local function charKey()
   local key = UnitName("player") .. "-" .. GetRealmName()
@@ -108,6 +126,26 @@ local function collect(level, view)
   if extra then
     local byLevel = function(a, b) return a.lvl < b.lvl or (a.lvl == b.lvl and a.id < b.id) end
     for _, l in pairs(out) do table.sort(l, byLevel) end
+  end
+
+  -- Habilidades de talento: o grau 1 vem do talento e o treinador só vende os graus seguintes (lista em Data.lua).
+  -- Se o personagem não conhece nenhuma magia com esse nome, o talento não foi escolhido: marca, tira do total
+  -- e joga para o fim de "agora".
+  local known = not pet and knownSpellNames()
+  if known and next(known) then
+    for _, k in ipairs({ "now", "soon" }) do
+      local normal, locked = {}, {}
+      for _, e in ipairs(out[k]) do
+        local n = C_Spell.GetSpellName(e.id)
+        if ns.TalentRanks[e.id] and n and not known[n] then
+          e.talent = true
+          table.insert(locked, e)
+        else
+          table.insert(normal, e)
+        end
+      end
+      if k == "now" then for _, e in ipairs(locked) do table.insert(normal, e) end; out[k] = normal end
+    end
   end
   return out
 end
@@ -264,7 +302,10 @@ end
 
 -- quantas coisas dá pra comprar agora, somando personagem e pet
 local function countNow(level)
-  local n = #collect(level, "char").now
+  local n = 0
+  for _, e in ipairs(collect(level, "char").now) do
+    if not e.talent then n = n + 1 end -- talento não escolhido não conta
+  end
   if hasPetData() then
     for _, e in ipairs(collect(level, "pet").now) do
       if not e.teach then n = n + 1 end -- "ensinar ao pet" não é compra no treinador
@@ -288,6 +329,7 @@ local T = {
   soon    = { 1.00, 0.82, 0.38 },
   learned = { 0.55, 0.55, 0.60 },
   teach   = { 1.00, 0.60, 0.25 }, -- caçador comprou, pet ainda não aprendeu
+  talent  = { 0.66, 0.55, 0.85 }, -- depende de um talento que não foi escolhido
 }
 local WHITE = "Interface\\Buttons\\WHITE8x8"
 
@@ -482,6 +524,10 @@ local function getRow(i)
   r:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetSpellByID(self.spellID)
+    if self.talent then
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddLine(L.TALENT_HINT, T.talent[1], T.talent[2], T.talent[3], true)
+    end
     if self.estimated then
       GameTooltip:AddLine(" ")
       GameTooltip:AddLine(L.PRICE_ESTIMATED, T.muted[1], T.muted[2], T.muted[3], true)
@@ -548,23 +594,26 @@ function panel:Refresh()
     for n, e in ipairs(list) do
       nRow = nRow + 1
       local r = getRow(nRow)
-      r.spellID, r.teach = e.id, e.teach
-      r.estimated = e.cost > 0 and not e.checked and not e.teach
+      r.spellID, r.teach, r.talent = e.id, e.teach, e.talent
+      r.estimated = e.cost > 0 and not e.checked and not e.teach and not e.talent
       r:ClearAllPoints()
       r:SetPoint("TOPLEFT", 0, -y)
       r.icon:SetTexture(C_Spell.GetSpellTexture(e.id) or 134400)
-      r.icon:SetDesaturated(kind == "soon")
+      r.icon:SetDesaturated(kind == "soon" or e.talent)
       r:SetAlpha(kind == "learned" and 0.55 or 1)
       r.name:SetText(spellLabel(e.id))
-      r.name:SetTextColor(unpack(kind == "now" and T.text or T.muted))
-      if e.teach then
+      r.name:SetTextColor(unpack(kind == "now" and not e.talent and T.text or T.muted))
+      if e.talent then
+        r.level:SetText(L.LEVEL:format(e.lvl) .. "  •  " .. L.TALENT_REQUIRED)
+        r.level:SetTextColor(unpack(T.talent))
+      elseif e.teach then
         r.level:SetText(L.TEACH_PET)
         r.level:SetTextColor(unpack(T.teach))
       else
         r.level:SetText(L.LEVEL:format(e.lvl))
         r.level:SetTextColor(unpack(T.muted))
       end
-      r.price:SetAlpha(r.estimated and 0.5 or 1) -- estimativa: preço inteiro apagado, moedas incluídas
+      r.price:SetAlpha((r.estimated or e.talent) and 0.5 or 1) -- estimativa: preço inteiro apagado, moedas incluídas
       if e.cost <= 0 then
         r.price:SetText("|cff666666—|r")
       elseif r.estimated then
@@ -572,7 +621,9 @@ function panel:Refresh()
       else
         r.price:SetText(coinText(e.cost))
       end
-      if e.teach then
+      if e.talent then
+        r.bg:SetColorTexture(1, 1, 1, n % 2 == 0 and 0.035 or 0.01)
+      elseif e.teach then
         r.bg:SetColorTexture(T.teach[1], T.teach[2], T.teach[3], n % 2 == 0 and 0.12 or 0.08)
       elseif kind == "now" then
         r.bg:SetColorTexture(T.now[1], T.now[2], T.now[3], n % 2 == 0 and 0.10 or 0.06)
@@ -588,8 +639,10 @@ function panel:Refresh()
     local total = 0
     local estimated = false
     for _, e in ipairs(list) do
-      total = total + e.cost
-      if e.cost > 0 and not e.checked and not e.teach then estimated = true end
+      if not e.talent then
+        total = total + e.cost
+        if e.cost > 0 and not e.checked and not e.teach then estimated = true end
+      end
     end
     local text = ("%s (%d)"):format(title, #list)
     if #list == 0 and emptyNote then text = text .. " |cff999999— " .. emptyNote .. "|r" end
