@@ -3,7 +3,7 @@
 local ADDON, ns = ...
 local L = ns.L -- textos no idioma do jogo (Locales/*.lua)
 local PREFIX = "|cff33ff99" .. L.NAME .. ":|r "
-local ICON = "Interface\\Icons\\INV_Glyph_MajorWarlock"
+local ICON = "Interface\\AddOns\\EAD_SkillPreview\\Art\\Icon"
 
 local function say(msg) print(PREFIX .. msg) end
 

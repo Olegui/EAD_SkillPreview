@@ -1,0 +1,4 @@
+package-as: EAD_SkillPreview
+
+ignore:
+  - media
