@@ -1,10 +1,10 @@
 # EAD - Skill Preview
 
-**🇺🇸 [English](#-english)** · **🇧🇷 [Português](#-português)**
+**[English](#english)** · **[Português](#português)**
 
 ---
 
-## 🇺🇸 English
+## English
 
 An addon for **World of Warcraft: Forever** that shows, without visiting the trainer, which class abilities you can already learn at your level and what is coming in the next levels, with icon, required level and price.
 
@@ -62,7 +62,7 @@ Each language is a file in `Locales/`. To fix a translation, edit the quoted tex
 
 ---
 
-## 🇧🇷 Português
+## Português
 
 Addon para **World of Warcraft: Forever** que mostra, sem precisar ir ao treinador, quais habilidades da sua classe já estão disponíveis no seu nível e quais vêm nos próximos níveis, com ícone, nível necessário e preço.
 
