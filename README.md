@@ -14,6 +14,7 @@ An addon for **World of Warcraft: Forever** that shows, without visiting the tra
 - **Groups:** Available, Upcoming (up to max level) and Already learned, each one collapsible and with its total cost on the right.
 - **Filter** with checkboxes to choose which groups are shown.
 - **Pet abilities** for Hunters (pet trainer) and Warlocks (demon grimoires), in their own tab.
+- **Professions:** one tab per profession your character has, with every recipe grouped by the skill you have now. Shows required skill, trainer price and, for the rest, where it comes from (vendor, quest, drop). The Filter can show trainer recipes only.
 - **Chat reminder** when you log in or level up and there is something new to learn.
 - **Self-correcting data:** when you open a class or pet trainer, the addon compares its list with what the game offers and fixes levels and prices. Fixes are saved and shared by all your characters of the same class.
 - **11 languages:** follows your game language (English, Brazilian Portuguese, German, French, Spanish, Italian, Russian, Korean, Simplified and Traditional Chinese).
@@ -32,11 +33,13 @@ An addon for **World of Warcraft: Forever** that shows, without visiting the tra
 
 | Action | How |
 |---|---|
-| Open / close the window | Click the book icon on the minimap or type `/ead` |
+| Open / close the window | Click the addon icon on the minimap or type `/ead` |
 | Move the minimap button | Drag it around the minimap border |
 | Collapse / expand a group | Click the group title |
 | See spell details | Hover the row |
-| Update prices and levels | Open your class (or pet) trainer once |
+| Link an ability or recipe in chat | Shift-click the row |
+| Update prices and levels | Open your class, pet or profession trainer once |
+| See a profession | Click its icon next to the Character tab |
 
 ### Project structure
 
@@ -45,6 +48,7 @@ EAD_SkillPreview/
 ├── EAD_SkillPreview.toc   addon manifest (name, description, files)
 ├── Core.lua               window, filter, minimap button and trainer check
 ├── Data.lua               ability list per class and for pets
+├── Professions.lua        recipe list per profession
 └── Locales/               one text file per language
 ```
 
@@ -68,6 +72,7 @@ Addon para **World of Warcraft: Forever** que mostra, sem precisar ir ao treinad
 - **Grupos:** Disponíveis, Próximas (até o nível máximo) e Já aprendidas, cada um podendo ser minimizado e com o valor total à direita.
 - **Filtro** com caixas de marcar para escolher quais grupos aparecem.
 - **Habilidades de pet** para caçador (treinador de pet) e bruxo (grimórios de demônio), em uma aba própria.
+- **Profissões:** uma aba para cada profissão do personagem, com todas as receitas agrupadas pela perícia que você tem agora. Mostra a perícia exigida, o preço no treinador e, nas demais, de onde vem (vendedor, missão, drop). O Filtro pode mostrar só as de treinador.
 - **Aviso no chat** ao logar e ao subir de nível quando há algo novo para aprender.
 - **Dados que se corrigem sozinhos:** ao abrir um treinador de classe ou de pet, o addon compara a lista com o que o jogo oferece e corrige níveis e preços. As correções ficam salvas e valem para todos os personagens da mesma classe.
 - **11 idiomas:** segue o idioma configurado no jogo (inglês, português do Brasil, alemão, francês, espanhol, italiano, russo, coreano e chinês simplificado e tradicional).
@@ -86,11 +91,13 @@ Addon para **World of Warcraft: Forever** que mostra, sem precisar ir ao treinad
 
 | Ação | Como |
 |---|---|
-| Abrir / fechar a janela | Clique no ícone do livro no minimapa ou digite `/ead` |
+| Abrir / fechar a janela | Clique no ícone do addon no minimapa ou digite `/ead` |
 | Mover o botão do minimapa | Arraste o ícone pela borda do minimapa |
 | Abrir / fechar um grupo | Clique no título do grupo |
 | Ver detalhes de uma habilidade | Passe o mouse sobre a linha |
-| Atualizar preços e níveis | Abra o treinador da sua classe (ou de pet) uma vez |
+| Linkar uma habilidade ou receita no chat | Shift+clique na linha |
+| Atualizar preços e níveis | Abra o treinador da sua classe, de pet ou de profissão uma vez |
+| Ver uma profissão | Clique no ícone dela ao lado da aba Personagem |
 
 ### Estrutura
 
@@ -99,6 +106,7 @@ EAD_SkillPreview/
 ├── EAD_SkillPreview.toc   ficha do addon (nome, descrição, arquivos)
 ├── Core.lua               janela, filtro, botão do minimapa e conferência no treinador
 ├── Data.lua               lista de habilidades por classe e de pets
+├── Professions.lua        lista de receitas por profissão
 └── Locales/               um arquivo de textos por idioma
 ```
 

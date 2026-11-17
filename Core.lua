@@ -3,7 +3,7 @@
 local ADDON, ns = ...
 local L = ns.L -- textos no idioma do jogo (Locales/*.lua)
 local PREFIX = "|cff33ff99" .. L.NAME .. ":|r "
-local ICON = "Interface\\Icons\\INV_Misc_Book_09"
+local ICON = "Interface\\Icons\\INV_Glyph_MajorWarlock"
 
 local function say(msg) print(PREFIX .. msg) end
 
@@ -68,6 +68,102 @@ local function charKey()
   local key = UnitName("player") .. "-" .. GetRealmName()
   EAD_SkillPreviewDB.learned[key] = EAD_SkillPreviewDB.learned[key] or {}
   return key
+end
+
+---------------------------------------------------------------- profissões
+-- Perícia atual numa profissão (nil se o personagem não a tem). O Forever mistura cliente moderno com conteúdo
+-- clássico, então tenta as três formas que o jogo já teve de informar isso.
+local function profSkill(prof)
+  local T = C_TradeSkillUI
+  if T and T.GetProfessionInfoBySkillLineID then
+    local p = T.GetProfessionInfoBySkillLineID(prof)
+    if p and (p.maxSkillLevel or 0) > 0 then return p.skillLevel end
+  end
+  if GetProfessions and GetProfessionInfo then
+    for n = 1, select("#", GetProfessions()) do
+      local i = select(n, GetProfessions())
+      if i then
+        local _, _, rank, _, _, _, line = GetProfessionInfo(i)
+        if line == prof then return rank end
+      end
+    end
+  end
+  if GetNumSkillLines and GetSkillLineInfo then
+    -- shortcut: compara pelo nome da magia de Aprendiz; falha se o jogo der à perícia um nome diferente do da magia
+    local name = C_Spell.GetSpellName(ns.ProfSpell[prof])
+    for i = 1, GetNumSkillLines() do
+      local n, header, _, rank = GetSkillLineInfo(i)
+      if not header and n == name then return rank end
+    end
+  end
+end
+
+-- profissões que o personagem tem, em ordem fixa (IDs da linha de perícia)
+local function playerProfs()
+  local list = {}
+  for prof in pairs(ns.Prof) do
+    if profSkill(prof) then list[#list + 1] = prof end
+  end
+  table.sort(list)
+  return list
+end
+
+local function recipeKnown(id, learnedHere)
+  if isKnown(id) or learnedHere[id] then return true end
+  if C_TradeSkillUI and C_TradeSkillUI.GetRecipeInfo then
+    local ok, r = pcall(C_TradeSkillUI.GetRecipeInfo, id)
+    return ok and r and r.learned or false
+  end
+  return false
+end
+
+-- Janela de profissão aberta (API clássica): anota as receitas que ela lista, para quando o jogo não
+-- responde por IsPlayerSpell para receitas.
+local function scanRecipes()
+  local learnedHere = EAD_SkillPreviewDB.learned[charKey()]
+  local function scan(count, link)
+    if not (count and link) then return end
+    for i = 1, count() do
+      local l = link(i)
+      local id = l and tonumber(l:match("enchant:(%d+)"))
+      if id then learnedHere[id] = true end
+    end
+  end
+  scan(GetNumTradeSkills, GetTradeSkillRecipeLink)
+  scan(GetNumCrafts, GetCraftRecipeLink)
+end
+
+-- mesmas listas de collect(), para uma profissão; lvl é a perícia exigida e src a origem (ver Professions.lua)
+local function collectProf(prof)
+  local skill = profSkill(prof) or 0
+  local data = ns.Prof[prof] or {}
+  local fix = EAD_SkillPreviewDB.fix[prof] or {} -- vistas no treinador: valem como receita de treinador
+  local confirmed = EAD_SkillPreviewDB.seen[prof] or {}
+  local learnedHere = EAD_SkillPreviewDB.learned[charKey()]
+  local trainerOnly = EAD_SkillPreviewDB.filters.trainerOnly
+  -- desconto de reputação deste personagem, em %, visto no treinador da profissão (o arquivo guarda o preço cheio)
+  local pct = (EAD_SkillPreviewDB.discount[charKey()] or {})[prof] or 100
+  local out = { now = {}, soon = {}, learned = {} }
+  local function add(id, lvl, cost, src, item, icon)
+    if trainerOnly and src ~= 6 then return end
+    local list = recipeKnown(id, learnedHere) and out.learned or (lvl <= skill and out.now or out.soon)
+    list[#list + 1] = { id = id, lvl = lvl, cost = math.floor(cost * pct / 100), src = src, item = item, icon = icon,
+      checked = fix[id] ~= nil or confirmed[id] == true }
+  end
+  local seen = {}
+  for i = 1, #data, 5 do
+    local id = data[i]
+    local f = fix[id]
+    seen[id] = true
+    if f then add(id, f.lvl, f.cost, 6, data[i + 4])
+    else add(id, data[i + 1], data[i + 2], data[i + 3], data[i + 4]) end
+  end
+  for id, f in pairs(fix) do
+    if not seen[id] then add(id, f.lvl, f.cost, 6, nil, f.icon) end -- só existe no jogo
+  end
+  local bySkill = function(a, b) return a.lvl < b.lvl or (a.lvl == b.lvl and a.id < b.id) end
+  for _, l in pairs(out) do table.sort(l, bySkill) end
+  return out
 end
 
 -- devolve listas {id, lvl, cost} de "agora", "próximas" e "aprendidas", em ordem de nível
@@ -158,10 +254,129 @@ local function serviceSpellID(i)
   end
 end
 
+local function readServices()
+  local list = {}
+  for i = 1, GetNumTrainerServices() do
+    local name, a, b = GetTrainerServiceInfo(i)
+    -- Classic: nome, grau, situação. Forever: nome, situação, ícone (sem o grau).
+    local rank, kind
+    if a == "available" or a == "unavailable" or a == "used" or a == "header" then kind = a
+    else rank, kind = a, b end
+    local tipID = serviceSpellID(i)
+    if (not rank or rank == "") and tipID and C_Spell.GetSpellSubtext then rank = C_Spell.GetSpellSubtext(tipID) end
+    if name and kind ~= "header" then
+      list[#list + 1] = {
+        index = i,
+        name = name,
+        rank = rank,
+        label = (rank and rank ~= "") and (name .. " (" .. rank .. ")") or name,
+        tipID = tipID,
+        used = kind == "used",
+        icon = kind == a and b or nil, -- só no formato do Forever
+        lvl = GetTrainerServiceLevelReq(i) or 0,
+        cost = GetTrainerServiceCost(i) or 0,
+      }
+    end
+  end
+  return list
+end
+
+-- Treinador de profissão: corrige perícia e preço das receitas e anota as já aprendidas. Não remove nada:
+-- cada treinador só ensina até um grau, e o que ele não oferece pode vir de outro treinador, vendedor ou drop.
+local function checkProfTrainer(silent)
+  -- /ead scan: cópia bruta do que o treinador devolve, por NPC, para regerar Professions.lua fora do jogo
+  -- (fica nas SavedVariables depois de um /reload). reaction: 5 amistoso ... 8 exaltado.
+  if EAD_SkillPreviewDB.scanOn then
+    local npc = UnitName("npc") or "?"
+    local dump = { reaction = UnitReaction("npc", "player") }
+    for i = 1, GetNumTrainerServices() do
+      dump[i] = {
+        info = { GetTrainerServiceInfo(i) },
+        id = serviceSpellID(i),
+        cost = (GetTrainerServiceCost(i)),
+        lvl = GetTrainerServiceLevelReq(i),
+        skill = GetTrainerServiceSkillReq and { GetTrainerServiceSkillReq(i) } or nil,
+        icon = GetTrainerServiceIcon and GetTrainerServiceIcon(i) or nil,
+        item = GetTrainerServiceItemLink and GetTrainerServiceItemLink(i) or nil,
+      }
+    end
+    EAD_SkillPreviewDB.scan[npc] = dump
+    if not silent then say(("scan: %d serviço(s) de %s gravado(s)."):format(#dump, npc)) end
+  end
+
+  local base, byLabel = {}, {}
+  for prof, data in pairs(ns.Prof) do
+    for i = 1, #data, 5 do
+      local id = data[i]
+      base[id] = { prof = prof, lvl = data[i + 1], cost = data[i + 2], src = data[i + 3] }
+      local label = spellLabel(id)
+      byLabel[label] = byLabel[label] or id
+    end
+  end
+  -- a profissão do treinador é a da maioria das receitas reconhecidas
+  local raw, ids, votes = readServices(), {}, {}
+  for k, s in ipairs(raw) do
+    local id = (s.tipID and base[s.tipID] and s.tipID) or byLabel[s.label] or s.tipID
+    ids[k] = id
+    local b = id and base[id]
+    if b then votes[b.prof] = (votes[b.prof] or 0) + 1 end
+  end
+  local prof, best = nil, 0
+  for p, v in pairs(votes) do
+    if v > best then prof, best = p, v end
+  end
+  if not prof then
+    if not silent then say(L.TRAINER_CHECKED:format(#raw, 0, 0, 0)) end
+    return
+  end
+  local DB = EAD_SkillPreviewDB
+  DB.fix[prof] = DB.fix[prof] or {}
+  DB.seen[prof] = DB.seen[prof] or {}
+  local key = charKey()
+  local fix, seen, learnedHere = DB.fix[prof], DB.seen[prof], DB.learned[key]
+  -- Desconto de reputação: o jogo cobra o preço cheio vezes 95/90/85/80%, arredondado para baixo. A razão sai da
+  -- receita mais cara reconhecida (menos erro de arredondamento) e vale para as que este treinador não mostra.
+  local pct, top = 100, 0
+  for k, s in ipairs(raw) do
+    local b = ids[k] and base[ids[k]]
+    if b and b.prof == prof and b.src == 6 and b.cost > top and not s.used then
+      top, pct = b.cost, math.floor(s.cost / b.cost * 20 + 0.5) * 5
+    end
+  end
+  if pct < 50 or pct > 100 then pct = 100 end -- razão absurda: o preço do arquivo é que está errado
+  DB.discount[key] = DB.discount[key] or {}
+  DB.discount[key][prof] = pct
+  local fixed, added = 0, 0
+  for k, s in ipairs(raw) do
+    local id = ids[k]
+    local b = id and base[id]
+    if id and (not b or b.prof == prof) then
+      local _, req
+      if GetTrainerServiceSkillReq then _, req = GetTrainerServiceSkillReq(s.index) end
+      req = tonumber(req) or 0
+      if req <= 0 then req = b and b.lvl or 1 end -- o jogo não informou: mantém a perícia do Wowhead
+      local full = math.ceil(s.cost * 100 / pct) -- preço cheio que, com o desconto, dá exatamente o cobrado
+      if s.used then
+        learnedHere[id] = true
+      elseif not b then
+        if not fix[id] then added = added + 1 end
+        fix[id] = { lvl = req, cost = full, icon = s.icon }
+      elseif b.src ~= 6 or b.lvl ~= req or math.floor(b.cost * pct / 100) ~= s.cost then
+        if not fix[id] then fixed = fixed + 1 end
+        fix[id] = { lvl = req, cost = full }
+      else
+        fix[id] = nil
+        seen[id] = true
+      end
+    end
+  end
+  if not silent then say(L.TRAINER_CHECKED:format(#raw, fixed, added, 0)) end
+end
+
 -- Compara o que o treinador oferece com a lista do Wowhead e guarda as diferenças em EAD_SkillPreviewDB.fix
 -- silent: relê sem escrever no chat (usado a cada mudança na janela, como uma compra)
 local function checkTrainer(silent)
-  if IsTradeskillTrainer and IsTradeskillTrainer() then return end
+  if IsTradeskillTrainer and IsTradeskillTrainer() then return checkProfTrainer(silent) end
   local _, class = UnitClass("player")
   local _, _, raceID = UnitRace("player")
   local keys = { class, class .. "_PET" }
@@ -197,31 +412,6 @@ local function checkTrainer(silent)
       or (rn and key:find("_PET$") and ix.ord[s.name .. "#" .. rn])
       or (s.tipID and owner[s.tipID] == key and s.tipID)
       or s.tipID
-  end
-
-  local function readServices()
-    local list = {}
-    for i = 1, GetNumTrainerServices() do
-      local name, a, b = GetTrainerServiceInfo(i)
-      -- Classic: nome, grau, situação. Forever: nome, situação, ícone (sem o grau).
-      local rank, kind
-      if a == "available" or a == "unavailable" or a == "used" or a == "header" then kind = a
-      else rank, kind = a, b end
-      local tipID = serviceSpellID(i)
-      if (not rank or rank == "") and tipID and C_Spell.GetSpellSubtext then rank = C_Spell.GetSpellSubtext(tipID) end
-      if name and kind ~= "header" then
-        list[#list + 1] = {
-          name = name,
-          rank = rank,
-          label = (rank and rank ~= "") and (name .. " (" .. rank .. ")") or name,
-          tipID = tipID,
-          used = kind == "used",
-          lvl = GetTrainerServiceLevelReq(i) or 0,
-          cost = GetTrainerServiceCost(i) or 0,
-        }
-      end
-    end
-    return list
   end
 
   local learnedHere = EAD_SkillPreviewDB.learned[charKey()]
@@ -457,6 +647,8 @@ safe(function()
 end)
 
 local rows, headers = {}, {}
+-- origem das receitas que não são de treinador (código do Wowhead, ver Professions.lua)
+local SRC = { [5] = L.SRC_VENDOR, [4] = L.SRC_QUEST, [2] = L.SRC_DROP, [0] = L.SRC_OTHER }
 
 -- cabeçalho de grupo clicável: faixa colorida, [+/-] título à esquerda, valor total à direita
 local function getHeader(i)
@@ -539,6 +731,19 @@ local function getRow(i)
     GameTooltip:Show()
   end)
   r:SetScript("OnLeave", GameTooltip_Hide)
+  -- Shift+clique (a tecla de link do jogo): põe o link da habilidade/receita no chat, abrindo a caixa se preciso
+  r:SetScript("OnClick", function(self)
+    if not IsModifiedClick("CHATLINK") then return end
+    safe(function()
+      local link = (C_Spell.GetSpellLink and C_Spell.GetSpellLink(self.spellID)) or (GetSpellLink and GetSpellLink(self.spellID))
+      if not link then return end
+      local insert = (ChatFrameUtil and ChatFrameUtil.InsertLink) or ChatEdit_InsertLink
+      if not (insert and insert(link)) then
+        local open = (ChatFrameUtil and ChatFrameUtil.OpenChat) or ChatFrame_OpenChat
+        if open then open(link) end
+      end
+    end)
+  end)
   rows[i] = r
   return r
 end
@@ -546,16 +751,35 @@ end
 function panel:Refresh()
   local level = UnitLevel("player")
   local F = EAD_SkillPreviewDB.filters
-  if not hasPetData() then EAD_SkillPreviewDB.view = "char" end
+  local profs = playerProfs()
   local view = EAD_SkillPreviewDB.view
-  panel.tabs:SetShown(hasPetData())
-  for v, b in pairs({ char = panel.tabs.char, pet = panel.tabs.pet }) do
-    local on = v == view
+  local isProf = type(view) == "number" -- aba de profissão: view é o ID da linha de perícia
+  if (isProf and not tContains(profs, view)) or (view == "pet" and not hasPetData()) then
+    view, isProf = "char", false
+    EAD_SkillPreviewDB.view = view
+  end
+  panel.tabs:SetShown(hasPetData() or #profs > 0)
+  panel.tabs.pet:SetShown(hasPetData())
+  -- um botão com o ícone de cada profissão, depois das abas de texto
+  local buttons = { panel.tabs.char, panel.tabs.pet }
+  for i, prof in ipairs(profs) do
+    local b = panel.profTab(i)
+    b.view = prof
+    b.tip = C_Spell.GetSpellName(ns.ProfSpell[prof])
+    b.icon:SetTexture(C_Spell.GetSpellTexture(ns.ProfSpell[prof]) or 134400)
+    b:SetPoint("LEFT", (hasPetData() and 160 or 80) + (i - 1) * 28, 0)
+    b:Show()
+    buttons[#buttons + 1] = b
+  end
+  for i = #profs + 1, #panel.tabs.prof do panel.tabs.prof[i]:Hide() end
+  for _, b in ipairs(buttons) do
+    local on = b.view == view
     b.line:SetShown(on)
     b.bg:SetColorTexture(on and T.accent[1] or 1, on and T.accent[2] or 1, on and T.accent[3] or 1, on and 0.16 or 0.04)
     b.text:SetTextColor(unpack(on and T.text or T.muted))
+    if b.icon then b.icon:SetDesaturated(not on) end
   end
-  local lists = collect(level, view) -- não chamar de L: L são os textos traduzidos
+  local lists = isProf and collectProf(view) or collect(level, view) -- não chamar de L: L são os textos traduzidos
   -- busca: mantém só as habilidades cujo nome contém o texto digitado (sem diferenciar maiúsculas)
   local q = panel.search and panel.search:GetText():lower() or ""
   if q ~= "" then
@@ -598,7 +822,9 @@ function panel:Refresh()
       r.estimated = e.cost > 0 and not e.checked and not e.teach and not e.talent
       r:ClearAllPoints()
       r:SetPoint("TOPLEFT", 0, -y)
-      r.icon:SetTexture(C_Spell.GetSpellTexture(e.id) or 134400)
+      -- receita de profissão: o ícone é o do item criado (a magia da receita tem um ícone genérico)
+      local itemIcon = e.item and e.item > 0 and C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(e.item)
+      r.icon:SetTexture(e.icon or itemIcon or C_Spell.GetSpellTexture(e.id) or 134400)
       r.icon:SetDesaturated(kind == "soon" or e.talent)
       r:SetAlpha(kind == "learned" and 0.55 or 1)
       r.name:SetText(spellLabel(e.id))
@@ -609,6 +835,9 @@ function panel:Refresh()
       elseif e.teach then
         r.level:SetText(L.TEACH_PET)
         r.level:SetTextColor(unpack(T.teach))
+      elseif e.src then -- receita de profissão: perícia exigida e, se não for de treinador, de onde vem
+        r.level:SetText(L.SKILL:format(e.lvl) .. (SRC[e.src] and ("  •  " .. SRC[e.src]) or ""))
+        r.level:SetTextColor(unpack(T.muted))
       else
         r.level:SetText(L.LEVEL:format(e.lvl))
         r.level:SetTextColor(unpack(T.muted))
@@ -658,7 +887,11 @@ function panel:Refresh()
   for i = nRow + 1, #rows do rows[i]:Hide() end
   for i = nHead + 1, #headers do headers[i]:Hide() end
   content:SetHeight(math.max(y, 1))
-  panel.title:SetText(L.TITLE_LEVEL:format(L.NAME, level))
+  if isProf then
+    panel.title:SetText(("%s: %s %d"):format(L.NAME, C_Spell.GetSpellName(ns.ProfSpell[view]) or "", profSkill(view) or 0))
+  else
+    panel.title:SetText(L.TITLE_LEVEL:format(L.NAME, level))
+  end
 end
 
 -- menu "Filtro" com checkboxes (API de menu do cliente moderno)
@@ -683,15 +916,17 @@ filter:SetupMenu(function(_, root)
     F.learned, F.now, F.soon = v, v, v
     safe(panel.Refresh)
   end)
+  opt(L.TRAINER_ONLY, "trainerOnly") -- abas de profissão: esconde receitas de vendedor, missão e drop
 end)
 
--- seletor Personagem | Pet, na mesma linha do Filtro (só aparece pra classe com pet)
+-- seletor Personagem | Pet | profissões, na mesma linha do Filtro
 panel.tabs = CreateFrame("Frame", nil, panel)
 panel.tabs:SetSize(190, 24)
 panel.tabs:SetPoint("TOPLEFT", 12, -42)
 local function tabButton(text, view, x)
   local b = CreateFrame("Button", nil, panel.tabs)
-  b:SetSize(92, 24)
+  b.view = view
+  b:SetSize(76, 24)
   b:SetPoint("LEFT", x, 0)
   b.bg = solid(b, "BACKGROUND", 1, 1, 1, 0.04)
   b.bg:SetAllPoints()
@@ -704,15 +939,37 @@ local function tabButton(text, view, x)
   b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   b.text:SetPoint("CENTER", 0, 1)
   b.text:SetText(text)
-  b:SetScript("OnClick", function()
-    EAD_SkillPreviewDB.view = view
+  b:SetScript("OnClick", function(self)
+    EAD_SkillPreviewDB.view = self.view
     scroll:SetVerticalScroll(0)
     safe(panel.Refresh)
   end)
   return b
 end
 panel.tabs.char = tabButton(L.CHARACTER, "char", 0)
-panel.tabs.pet = tabButton(L.PET, "pet", 96)
+panel.tabs.pet = tabButton(L.PET, "pet", 80)
+
+-- aba de profissão: só o ícone, com o nome no tooltip (Refresh define view, ícone e posição)
+panel.tabs.prof = {}
+function panel.profTab(i)
+  local b = panel.tabs.prof[i]
+  if b then return b end
+  b = tabButton("", nil, 0)
+  b:SetSize(24, 24)
+  b.icon = b:CreateTexture(nil, "ARTWORK")
+  b.icon:SetPoint("TOPLEFT", 2, -2)
+  b.icon:SetPoint("BOTTOMRIGHT", -2, 3)
+  b.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+  b.line:SetDrawLayer("OVERLAY")
+  b:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine(self.tip or "")
+    GameTooltip:Show()
+  end)
+  b:SetScript("OnLeave", GameTooltip_Hide)
+  panel.tabs.prof[i] = b
+  return b
+end
 
 panel:SetScript("OnShow", function() safe(panel.Refresh) end)
 
@@ -759,15 +1016,39 @@ mm:SetScript("OnDragStart", function(self)
   end)
 end)
 mm:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
+local function fillTooltip(tt)
+  tt:AddLine(L.NAME)
+  local n = countNow(UnitLevel("player"))
+  tt:AddLine(n > 0 and ("|cff00ff00" .. L.TT_NOW:format(n) .. "|r") or L.TT_NOTHING, 1, 1, 1)
+  tt:AddLine(L.TT_HINT, 0.6, 0.6, 0.6)
+end
 mm:SetScript("OnEnter", function(self)
   GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-  GameTooltip:AddLine(L.NAME)
-  local n = countNow(UnitLevel("player"))
-  GameTooltip:AddLine(n > 0 and ("|cff00ff00" .. L.TT_NOW:format(n) .. "|r") or L.TT_NOTHING, 1, 1, 1)
-  GameTooltip:AddLine(L.TT_HINT, 0.6, 0.6, 0.6)
+  fillTooltip(GameTooltip)
   GameTooltip:Show()
 end)
 mm:SetScript("OnLeave", GameTooltip_Hide)
+
+-- Com a LibDBIcon carregada por outro addon, o botão passa a ser o dela: coletores de botões do minimapa
+-- (como a bolsa do FlareUI) só desenham no padrão deles os botões registrados nessa biblioteca.
+-- shortcut: a biblioteca não vem embutida; sem outro addon que a traga fica o botão próprio acima. Embutir se
+-- alguém pedir o ícone padronizado sem ter outro addon com ela.
+local function useLibDBIcon()
+  local LDB = LibStub and LibStub("LibDataBroker-1.1", true)
+  local DBI = LibStub and LibStub("LibDBIcon-1.0", true)
+  if not (LDB and DBI) then return end
+  local object = LDB:NewDataObject(ADDON, {
+    type = "launcher",
+    label = L.NAME,
+    icon = ICON,
+    OnClick = function() safe(toggle) end,
+    OnTooltipShow = fillTooltip,
+  })
+  -- mesma convenção de ângulo (graus) do botão próprio
+  EAD_SkillPreviewDB.minimap = EAD_SkillPreviewDB.minimap or { minimapPos = EAD_SkillPreviewDB.angle % 360 }
+  DBI:Register(ADDON, object, EAD_SkillPreviewDB.minimap)
+  mm:Hide()
+end
 
 ---------------------------------------------------------------- eventos
 local function announce(level)
@@ -787,6 +1068,8 @@ f:RegisterUnitEvent("UNIT_PET", "player")
 f:RegisterEvent("TRAINER_SHOW")
 f:RegisterEvent("TRAINER_UPDATE")
 f:RegisterEvent("PET_BAR_UPDATE")
+-- eventos de profissão mudam de nome entre versões do cliente, e registrar um que não existe dá erro
+for _, e in ipairs({ "TRADE_SKILL_SHOW", "CRAFT_SHOW", "SKILL_LINES_CHANGED" }) do pcall(f.RegisterEvent, f, e) end
 f:SetScript("OnEvent", function(_, event, arg1)
   if event == "ADDON_LOADED" and arg1 == ADDON then
     EAD_SkillPreviewDB = EAD_SkillPreviewDB or {}
@@ -798,6 +1081,16 @@ f:SetScript("OnEvent", function(_, event, arg1)
     EAD_SkillPreviewDB.learned = EAD_SkillPreviewDB.learned or {}
     EAD_SkillPreviewDB.seen = EAD_SkillPreviewDB.seen or {} -- preços conferidos que já batiam com o Wowhead
     EAD_SkillPreviewDB.petSpell = EAD_SkillPreviewDB.petSpell or {} -- magia do caçador -> magia no livro do pet
+    EAD_SkillPreviewDB.scan = EAD_SkillPreviewDB.scan or {} -- cópia bruta dos treinadores de profissão (/ead scan)
+    EAD_SkillPreviewDB.discount = EAD_SkillPreviewDB.discount or {} -- personagem -> profissão -> % do preço cheio
+    -- v7: correções de profissão guardavam o preço já com desconto; agora o desconto é aplicado na hora de mostrar
+    if (EAD_SkillPreviewDB.fixVersion or 1) < 7 then
+      for _, t in ipairs({ EAD_SkillPreviewDB.fix, EAD_SkillPreviewDB.seen }) do
+        for k in pairs(t) do
+          if type(k) == "number" then t[k] = nil end
+        end
+      end
+    end
     -- v2: magias do treinador de pet gravadas na lista do personagem; v3: Treinamento de Bestas lido como
     -- treinador (pontos de treinamento virando cobre); v4: magias de pet não associadas; v5: situação lida na posição errada (tudo virava aprendido). Descarta as correções e reconfere no próximo treinador.
     if (EAD_SkillPreviewDB.fixVersion or 1) < 5 then
@@ -810,6 +1103,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
       EAD_SkillPreviewDB.learned = {}
       EAD_SkillPreviewDB.fixVersion = 6
     end
+    EAD_SkillPreviewDB.fixVersion = 7
     placeButton()
   elseif event == "TRAINER_SHOW" then
     -- mostra também indisponíveis e já aprendidas, senão o treinador esconde parte da lista
@@ -829,6 +1123,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
   elseif event == "PLAYER_LEVEL_UP" then
     safe(announce, arg1) -- arg1 é o nível novo; UnitLevel ainda pode estar no antigo
   elseif event == "PLAYER_LOGIN" then
+    safe(useLibDBIcon) -- aqui todos os addons já carregaram, inclusive o que traz a biblioteca
     C_Timer.After(3, function() safe(announce, UnitLevel("player")) end) -- espera o grimório carregar
   elseif event == "TRAINER_UPDATE" and not trainerPending then
     -- comprou no treinador ou ensinou o pet no Treinamento de Feras: relê em silêncio e atualiza.
@@ -839,7 +1134,13 @@ f:SetScript("OnEvent", function(_, event, arg1)
       safe(checkTrainer, true)
       if panel:IsShown() then safe(panel.Refresh) end
     end)
-  elseif (event == "SPELLS_CHANGED" or event == "UNIT_PET" or event == "PET_BAR_UPDATE") and panel:IsShown() then
+  elseif event == "TRADE_SKILL_SHOW" or event == "CRAFT_SHOW" then
+    C_Timer.After(0.5, function()
+      safe(scanRecipes)
+      if panel:IsShown() then safe(panel.Refresh) end
+    end)
+  elseif (event == "SPELLS_CHANGED" or event == "UNIT_PET" or event == "PET_BAR_UPDATE"
+    or event == "SKILL_LINES_CHANGED") and panel:IsShown() then
     safe(panel.Refresh) -- aprendeu algo, trocou de pet ou o pet aprendeu algo com o painel aberto
   end
 end)
@@ -849,6 +1150,10 @@ SLASH_EADSKILLPREVIEW1 = "/ead"
 local function debugTrainer()
   local n = GetNumTrainerServices and GetNumTrainerServices() or 0
   say(("debug: %d serviço(s), npc=%s"):format(n, tostring(UnitExists("npc"))))
+  for prof, spell in pairs(ns.ProfSpell) do
+    print(("  profissão %d %s: perícia=%s"):format(prof, tostring(C_Spell.GetSpellName(spell)), tostring(profSkill(prof))))
+  end
+  if n > 0 and GetTrainerServiceSkillReq then print("  perícia exigida do 1º serviço:", GetTrainerServiceSkillReq(1)) end
   local kinds = {}
   for i = 1, n do
     local name, rank, kind = GetTrainerServiceInfo(i) -- no Forever: nome, situação, ícone
@@ -863,5 +1168,9 @@ local function debugTrainer()
 end
 
 SlashCmdList.EADSKILLPREVIEW = function(msg)
-  if msg == "debug" then safe(debugTrainer) else safe(toggle) end
+  if msg == "debug" then safe(debugTrainer)
+  elseif msg == "scan" then -- liga/desliga a gravação bruta dos treinadores de profissão (para atualizar Professions.lua)
+    EAD_SkillPreviewDB.scanOn = not EAD_SkillPreviewDB.scanOn
+    say("scan " .. (EAD_SkillPreviewDB.scanOn and "ON" or "OFF"))
+  else safe(toggle) end
 end
