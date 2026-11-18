@@ -148,14 +148,36 @@ strong highlights and deep soft shadows that make every piece look carved
 and solid. Painted shading only: no black ink outlines, no cel shading, no
 flat vector look, no photorealism. Sharp and highly detailed.
 
-LOOK - PALADIN: the armory of a holy knight at night. Frame of blackened
-steel and very dark navy enamel with engraved gold trim. Accent color: warm
-gold with a soft rose tint (#F58CBA used sparingly on gems and enamel). List
-panel interior: very dark navy velvet. Medallion emblem: a simple sunburst.
-Decorations: top-right, a heavy warhammer of dark steel and gold;
-bottom-left, a small closed holy book with a dark leather cover; bottom-right,
-a small dark steel shield with a gold sunburst; left edge, a short dark blue
-and gold cloth tabard; right edge, two small lit candles.
+PROPORTIONS (most important): copy the blockout's proportions exactly. The
+frame borders on the left, right and bottom of the list panel stay as thin as
+in the blockout; do not make them wider to fit ornaments. The list panel
+keeps its full size. The footer strip below the list panel stays visible as
+an empty, flat bar of frame material across almost the full width. The
+medallion is large and bold: about 1.5 times the blockout circle, centered on
+the window's top-left corner and overhanging the frame edge into the magenta,
+like a heavy badge riveted onto the corner. It stays left of the title plate.
+
+LOOK - PALADIN: a holy knight's armor, forged in dark gunmetal steel with
+burnished gold trim. The frame is made of smooth dark steel plates; the
+ornament lives in the trim: thick gold edges engraved with fine holy
+filigree, gold rivets, and a few small faceted golden topaz gems that glow
+softly from within (the glow stays inside the gem). Ornament is concentrated
+on the outer edge of the frame and around the title bar, never as large
+shapes beside or below the list panel: no wings, no scrollwork columns, no
+oversized pieces along the sides. Accent colors: radiant gold and the
+paladin rose pink (#F58CBA), the pink only in tiny enamel inlays and gem
+facets. The empty strip under the title stays plain dark steel like the rest
+of the frame, not colored. List panel interior: plain very dark navy velvet,
+completely uniform, with no pattern, emblem or sunburst inside it.
+Medallion emblem: a golden sunburst with a small raised hammer at its
+center. Decorations, each small and fully outside the list panel: top-right,
+a heavy two-handed warhammer with a gold-plated head shaped like a sunburst;
+bottom-left, a small thick holy tome with a gold clasp and a sunburst seal,
+lying flat; bottom-right, a small heater shield of dark steel with a gold
+rim and a gold sunburst; left edge, a short crimson and gold war banner with
+a sunburst, hanging from a gold rod; right edge, a small steel gauntlet of
+plate armor with gold trim. No candles, no flames, no light rays reaching
+the magenta.
 ```
 
 ---

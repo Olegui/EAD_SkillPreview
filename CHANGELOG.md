@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.1
+
+- Paladino com arte nova: armadura de aço escuro com filetes dourados, martelo, estandarte, manopla, tomo e escudo.
+- O destaque ao passar o mouse nas linhas e no Filtro, e o da aba ativa, agora são arredondados como os campos da janela.
+
 ## 1.2.0
 
 - Janela nova: uma arte pintada por classe (Guerreiro, Paladino, Caçador, Ladino, Sacerdote, Xamã, Mago, Bruxo e Druida).

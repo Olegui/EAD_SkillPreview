@@ -526,7 +526,7 @@ local WHITE = "Interface\\Buttons\\WHITE8x8"
 -- As outras peças (título, abas, filtro, busca, fechar) ficam no mesmo lugar em todas.
 local THEMES = {
   WARRIOR = { art = "Warrior", accent = { 0.78, 0.61, 0.43 }, list = { 13.4, 29.5, 86.4, 83.5 }, foot = { 46, 91.7 }, title = { 49.5, 9.25, 20 } }, -- base curta: escudo no canto
-  PALADIN = { art = "Paladin", accent = { 0.96, 0.55, 0.73 }, list = { 13.2, 29.0, 86.6, 82.5 }, foot = { 51, 91.0 }, title = { 50, 9.0, 20 } }, -- base curta: livro e escudo
+  PALADIN = { art = "Paladin", accent = { 0.96, 0.55, 0.73 }, list = { 13.0, 29.2, 87.3, 83.5 }, foot = { 50, 90.6 }, title = { 51, 9.85, 26 } }, -- base curta: livro e escudo; à esquerda, o estandarte
   HUNTER  = { art = "Hunter",  accent = { 0.67, 0.83, 0.45 }, list = { 17.4, 32.3, 82.4, 87.5 }, foot = { 50.8, 91.5 }, title = { 50.4, 9.4, 27 } },
   ROGUE   = { art = "Rogue",   accent = { 1.00, 0.96, 0.41 }, list = { 15.6, 28.2, 84.2, 85.3 }, foot = { 50, 90.9 }, title = { 51.2, 9.4, 26 } },
   PRIEST  = { art = "Priest",  accent = { 0.92, 0.92, 0.96 }, list = { 19.6, 30.0, 80.1, 86.0 }, foot = { 50, 91.9 }, title = { 51, 9.0, 26 } },
@@ -599,6 +599,15 @@ local function newPill(parent, layer, h, blend)
   p[2]:SetPoint("TOPLEFT", p[1], "TOPRIGHT")
   p[2]:SetPoint("BOTTOMRIGHT", p[3], "BOTTOMLEFT")
   if blend then for i = 1, 3 do p[i]:SetBlendMode(blend) end end
+  -- as pontas recortam a moldura em volta do campo; a máscara deixa só a parte redonda (Art/PillCap*, de make_art.py)
+  if parent.CreateMaskTexture then
+    for i, file in pairs({ [1] = "PillCapL", [3] = "PillCapR" }) do
+      local m = parent:CreateMaskTexture()
+      m:SetTexture(ART .. file, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+      m:SetAllPoints(p[i])
+      p[i]:AddMaskTexture(m)
+    end
+  end
   p.capW = capW
   return p
 end
@@ -613,9 +622,7 @@ local function dressRow(r)
   local a = T.accent
   dressPill(r.pill)
   dressPill(r.glow, a[1], a[2], a[3], 0.9) -- o aro do campo acende na cor da classe
-  -- e o miolo ganha um véu da mesma cor que some antes das pontas redondas
-  r.washL:SetGradient("HORIZONTAL", CreateColor(a[1], a[2], a[3], 0), CreateColor(a[1], a[2], a[3], 0.16))
-  r.washR:SetGradient("HORIZONTAL", CreateColor(a[1], a[2], a[3], 0.16), CreateColor(a[1], a[2], a[3], 0))
+  for i = 1, 3 do r.wash[i]:SetColorTexture(a[1], a[2], a[3], 0.16) end -- e o miolo ganha um véu da mesma cor
 end
 local function dressHeader(h)
   crop(h.bg, 22, 15.6, 52, 18.4) -- miolo da faixa das abas
@@ -733,16 +740,7 @@ local function getRow(i)
   r:SetSize(WIDTH, ROW_H - 2)
   r.pill = newPill(r, "BACKGROUND", ROW_H - 2)
   r.glow = newPill(r, "HIGHLIGHT", ROW_H - 2, "ADD")
-  r.washL = r:CreateTexture(nil, "HIGHLIGHT")
-  r.washL:SetTexture(WHITE)
-  r.washL:SetBlendMode("ADD")
-  r.washL:SetPoint("TOPLEFT", 4, -4)
-  r.washL:SetPoint("BOTTOMRIGHT", r, "BOTTOM", 0, 4)
-  r.washR = r:CreateTexture(nil, "HIGHLIGHT")
-  r.washR:SetTexture(WHITE)
-  r.washR:SetBlendMode("ADD")
-  r.washR:SetPoint("TOPRIGHT", -4, -4)
-  r.washR:SetPoint("BOTTOMLEFT", r, "BOTTOM", 0, 4)
+  r.wash = newPill(r, "HIGHLIGHT", ROW_H - 2, "ADD")
   dressRow(r)
   r.iconBorder = solid(r, "ARTWORK", 0, 0, 0, 1)
   r.iconBorder:SetSize(26, 26)
@@ -947,8 +945,7 @@ end
 -- sem modelo: o campo com a seta já está pintado na arte; aqui só o texto e a área de clique
 local filter = CreateFrame("DropdownButton", nil, panel)
 place(filter, 69, 14.5, 89, 19.5)
-filter:SetHighlightTexture(WHITE)
-filter:GetHighlightTexture():SetVertexColor(1, 1, 1, 0.05)
+filter.wash = newPill(filter, "HIGHLIGHT", PH * 0.05, "ADD") -- brilho redondo como o campo pintado (cor em applyTheme)
 local filterText = filter:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 filterText:SetPoint("LEFT", 12, 0)
 filterText:SetText(L.FILTER)
@@ -1037,6 +1034,7 @@ local function applyTheme()
   local th = THEMES[themeKey()]
   local a, l = th.accent, th.list
   T.accent = a
+  for i = 1, 3 do filter.wash[i]:SetColorTexture(a[1], a[2], a[3], 0.16) end
   panel.art:SetTexture(ART .. th.art)
   panel.title:SetTextColor(a[1], a[2], a[3])
   if panel.thumb then panel.thumb:SetColorTexture(a[1], a[2], a[3], 0.85) end

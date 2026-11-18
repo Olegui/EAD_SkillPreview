@@ -34,6 +34,34 @@ def blp(img):
     return head + offsets + sizes + bytes(1024) + data
 
 
+def cap_mask(right):
+    """64x64 mask of the search field's rounded end, white with alpha, for the cap textures in Core.lua.
+
+    The cap is CAP = 5% of the window wide and the field (PILL) 4.75% tall, so in the 495x660 window the
+    half-circle radius is 15.7 of the cap's 24.75 units: 0.633 of its width. Drawn 8x larger, then reduced
+    for a smooth edge.
+    """
+    n, k = 512, 0.633
+    m = Image.new("L", (n, n))
+    px = m.load()
+    for y in range(n):
+        for x in range(n):
+            u, v = (x + 0.5) / n, (y + 0.5) / n
+            if right: u = 1 - u
+            inside = u >= k + 0.02 or ((u - k - 0.02) / k) ** 2 + ((v - 0.5) / 0.5) ** 2 <= 1
+            px[x, y] = 255 if inside else 0
+    m = m.resize((64, 64), Image.LANCZOS)
+    img = Image.new("RGBA", (64, 64), (255, 255, 255, 0))
+    img.putalpha(m)
+    outer, inner = (63, 0) if right else (0, 0), (0, 32) if right else (63, 32)  # rounded corner clear, straight end solid
+    assert img.getpixel(outer)[3] == 0 and img.getpixel(inner)[3] == 255
+    return img
+
+
+for side, name in ((False, "PillCapL"), (True, "PillCapR")):
+    cap_mask(side).save(os.path.join(ROOT, "Art", name + ".tga"), format="TGA", compression=None)
+    print(name)
+
 for src, dst in NAMES.items():
     img = key_magenta(Image.open(os.path.join(ROOT, "art-src", src + ".jpg"))).resize((W, H), Image.LANCZOS)
     out = os.path.join(ROOT, "Art", dst + ".blp")
