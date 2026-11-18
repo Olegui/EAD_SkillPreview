@@ -5,3 +5,7 @@ ignore:
   - docs
   - art-src
   - tools
+
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
