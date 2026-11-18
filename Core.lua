@@ -504,14 +504,9 @@ local function countNow(level)
   return n
 end
 
----------------------------------------------------------------- tema "EAD"
--- Obsidiana azulada com moldura dourada (pegada do jogo) e um destaque azul-arcano como marca.
+---------------------------------------------------------------- temas
+-- Cores fixas (significado das linhas) e a cor de destaque, que vem do tema.
 local T = {
-  bg      = { 0.035, 0.04, 0.06, 0.96 },
-  barTop  = { 0.17, 0.14, 0.09, 1 },
-  barBot  = { 0.07, 0.07, 0.09, 1 },
-  border  = { 0.80, 0.63, 0.30, 1 },
-  gold    = { 1.00, 0.82, 0.38 },
   accent  = { 0.28, 0.80, 0.90 },
   text    = { 0.93, 0.91, 0.86 },
   muted   = { 0.58, 0.58, 0.62 },
@@ -523,32 +518,47 @@ local T = {
 }
 local WHITE = "Interface\\Buttons\\WHITE8x8"
 
+-- Um tema por classe: a arte pintada da janela inteira e a cor de destaque da classe.
+-- Art/<art>.tga sai de art-src/ com tools/make_art.py.
+-- `list` é o miolo escuro do quadro de conteúdo, medido em cada arte: x0, y0, x1, y1 em % da imagem.
+-- `foot` é o centro da faixa livre do rodapé, entre os enfeites dos cantos: x, y em % da imagem.
+-- `title` é a placa do título: centro x, y e meia largura do miolo, em % da imagem.
+-- As outras peças (título, abas, filtro, busca, fechar) ficam no mesmo lugar em todas.
+local THEMES = {
+  WARRIOR = { art = "Warrior", accent = { 0.78, 0.61, 0.43 }, list = { 13.4, 29.5, 86.4, 83.5 }, foot = { 46, 91.7 }, title = { 49.5, 9.25, 20 } }, -- base curta: escudo no canto
+  PALADIN = { art = "Paladin", accent = { 0.96, 0.55, 0.73 }, list = { 13.2, 29.0, 86.6, 82.5 }, foot = { 51, 91.0 }, title = { 50, 9.0, 20 } }, -- base curta: livro e escudo
+  HUNTER  = { art = "Hunter",  accent = { 0.67, 0.83, 0.45 }, list = { 17.4, 32.3, 82.4, 87.5 }, foot = { 50.8, 91.5 }, title = { 50.4, 9.4, 27 } },
+  ROGUE   = { art = "Rogue",   accent = { 1.00, 0.96, 0.41 }, list = { 15.6, 28.2, 84.2, 85.3 }, foot = { 50, 90.9 }, title = { 51.2, 9.4, 26 } },
+  PRIEST  = { art = "Priest",  accent = { 0.92, 0.92, 0.96 }, list = { 19.6, 30.0, 80.1, 86.0 }, foot = { 50, 91.9 }, title = { 51, 9.0, 26 } },
+  SHAMAN  = { art = "Shaman",  accent = { 0.30, 0.62, 1.00 }, list = { 19.9, 30.2, 79.9, 84.5 }, foot = { 50.4, 91.0 }, title = { 50.2, 8.9, 20 } }, -- azul da classe clareado para leitura
+  MAGE    = { art = "Mage",    accent = { 0.41, 0.80, 0.94 }, list = { 17.2, 29.3, 82.8, 87.0 }, foot = { 48, 91.4 }, title = { 50.6, 9.0, 27 } },
+  WARLOCK = { art = "Warlock", accent = { 0.58, 0.51, 0.79 }, list = { 16.1, 29.2, 83.7, 85.5 }, foot = { 49, 90.5 }, title = { 50.4, 9.6, 27 } },
+  DRUID   = { art = "Druid",   accent = { 1.00, 0.49, 0.04 }, list = { 16.7, 30.2, 83.0, 85.2 }, foot = { 46, 91.7 }, title = { 52.7, 9.75, 24 } },
+}
+local ART = "Interface\\AddOns\\EAD_SkillPreview\\Art\\"
+
+-- Tema do personagem: o que ele escolheu ou, sem escolha, o da própria classe.
+local function themeKey()
+  local _, class = UnitClass("player")
+  local saved = EAD_SkillPreviewDB and EAD_SkillPreviewDB.themes and EAD_SkillPreviewDB.themes[charKey()]
+  return THEMES[saved] and saved or (THEMES[class] and class) or "WARRIOR"
+end
+
 local function solid(parent, layer, r, g, b, a)
   local t = parent:CreateTexture(nil, layer)
   t:SetColorTexture(r, g, b, a or 1)
   return t
 end
 
-local function vgradient(tex, top, bottom)
-  tex:SetTexture(WHITE)
-  tex:SetGradient("VERTICAL", CreateColor(unpack(bottom)), CreateColor(unpack(top))) -- VERTICAL: 1º é a base
-end
-
 ---------------------------------------------------------------- painel
 local ROW_H = 36
-local WIDTH = 362 -- largura útil da lista
-local panel = CreateFrame("Frame", "EAD_SkillPreviewPanel", UIParent, "BackdropTemplate")
-panel:SetSize(400, 570)
+local WIDTH = 330 -- largura útil da lista; cada tema ajusta (applyTheme)
+local PW, PH = 495, 660 -- a imagem inteira, enfeites incluídos (proporção 3:4)
+local panel = CreateFrame("Frame", "EAD_SkillPreviewPanel", UIParent)
+panel:SetSize(PW, PH)
 panel:SetPoint("CENTER")
 panel:SetFrameStrata("HIGH")
-panel:SetBackdrop({
-  bgFile = WHITE,
-  edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-  edgeSize = 14,
-  insets = { left = 3, right = 3, top = 3, bottom = 3 },
-})
-panel:SetBackdropColor(unpack(T.bg))
-panel:SetBackdropBorderColor(unpack(T.border))
+panel:SetHitRectInsets(PW * 0.04, PW * 0.07, PH * 0.04, PH * 0.06) -- a margem transparente em volta não pega clique
 panel:SetMovable(true)
 panel:EnableMouse(true)
 panel:RegisterForDrag("LeftButton")
@@ -558,69 +568,98 @@ panel:SetClampedToScreen(true)
 panel:Hide()
 tinsert(UISpecialFrames, panel:GetName()) -- fecha com ESC
 
--- brilho arcano suave descendo do topo
-local glow = panel:CreateTexture(nil, "BORDER")
-glow:SetPoint("TOPLEFT", 4, -34)
-glow:SetPoint("TOPRIGHT", -4, -34)
-glow:SetHeight(140)
-vgradient(glow, { T.accent[1], T.accent[2], T.accent[3], 0.10 }, { 0, 0, 0, 0 })
+-- Posiciona uma peça sobre a arte: retângulo em % da imagem, a partir do canto superior esquerdo.
+local function place(f, x0, y0, x1, y1)
+  f:ClearAllPoints()
+  f:SetPoint("TOPLEFT", panel, "TOPLEFT", PW * x0 / 100, -PH * y0 / 100)
+  f:SetPoint("BOTTOMRIGHT", panel, "TOPLEFT", PW * x1 / 100, -PH * y1 / 100)
+end
 
--- barra de título
-local bar = CreateFrame("Frame", nil, panel)
-bar:SetPoint("TOPLEFT", 4, -4)
-bar:SetPoint("TOPRIGHT", -4, -4)
-bar:SetHeight(30)
-local barBg = bar:CreateTexture(nil, "BACKGROUND")
-barBg:SetAllPoints()
-vgradient(barBg, T.barTop, T.barBot)
-local barLine = solid(bar, "ARTWORK", T.border[1], T.border[2], T.border[3], 0.8)
-barLine:SetPoint("BOTTOMLEFT")
-barLine:SetPoint("BOTTOMRIGHT")
-barLine:SetHeight(1)
+panel.art = panel:CreateTexture(nil, "BACKGROUND")
+panel.art:SetAllPoints() -- a textura 512x1024 é a imagem inteira espremida; aqui volta à proporção da janela
 
-local logoBorder = solid(bar, "ARTWORK", T.border[1], T.border[2], T.border[3], 1)
-logoBorder:SetSize(22, 22)
-logoBorder:SetPoint("LEFT", 6, 0)
-local logo = bar:CreateTexture(nil, "OVERLAY")
-logo:SetSize(20, 20)
-logo:SetPoint("CENTER", logoBorder)
-logo:SetTexture(ICON)
-logo:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+-- Linhas, abas, cabeçalhos e a placa dos créditos são recortes da própria arte do tema, para tudo ter a mesma pintura.
+-- O "campo" é o campo de busca: pontas arredondadas + miolo esticado (a ponta direita é a esquerda espelhada, sem a lupa).
+local PILL = { 10.9, 20.9, 89.1, 25.65 } -- campo de busca, no mesmo lugar nas nove artes: x0, y0, x1, y1 em %
+local CAP = 5 -- largura da ponta arredondada do campo, em % da imagem
+local function crop(tex, x0, y0, x1, y1)
+  tex:SetTexture(ART .. THEMES[themeKey()].art)
+  tex:SetTexCoord(x0 / 100, x1 / 100, y0 / 100, y1 / 100)
+end
+-- Três texturas que desenham um campo do tamanho de `parent` (altura `h`); `blend` "ADD" para o brilho.
+local function newPill(parent, layer, h, blend)
+  local p = { parent:CreateTexture(nil, layer), parent:CreateTexture(nil, layer), parent:CreateTexture(nil, layer) }
+  local capW = PW * CAP / 100 * h / (PH * (PILL[4] - PILL[2]) / 100) -- ponta na proporção da altura
+  p[1]:SetPoint("TOPLEFT")
+  p[1]:SetPoint("BOTTOMLEFT")
+  p[1]:SetWidth(capW)
+  p[3]:SetPoint("TOPRIGHT")
+  p[3]:SetPoint("BOTTOMRIGHT")
+  p[3]:SetWidth(capW)
+  p[2]:SetPoint("TOPLEFT", p[1], "TOPRIGHT")
+  p[2]:SetPoint("BOTTOMRIGHT", p[3], "BOTTOMLEFT")
+  if blend then for i = 1, 3 do p[i]:SetBlendMode(blend) end end
+  p.capW = capW
+  return p
+end
+-- Recorta o campo da arte do tema atual; cor e opacidade opcionais (o brilho usa a cor da classe).
+local function dressPill(p, r, g, b, a)
+  crop(p[1], PILL[1], PILL[2], PILL[1] + CAP, PILL[4])
+  crop(p[2], 30, PILL[2], 60, PILL[4])
+  crop(p[3], PILL[1] + CAP, PILL[2], PILL[1], PILL[4])
+  for i = 1, 3 do p[i]:SetVertexColor(r or 1, g or 1, b or 1, a or 1) end
+end
+local function dressRow(r)
+  local a = T.accent
+  dressPill(r.pill)
+  dressPill(r.glow, a[1], a[2], a[3], 0.9) -- o aro do campo acende na cor da classe
+  -- e o miolo ganha um véu da mesma cor que some antes das pontas redondas
+  r.washL:SetGradient("HORIZONTAL", CreateColor(a[1], a[2], a[3], 0), CreateColor(a[1], a[2], a[3], 0.16))
+  r.washR:SetGradient("HORIZONTAL", CreateColor(a[1], a[2], a[3], 0.16), CreateColor(a[1], a[2], a[3], 0))
+end
+local function dressHeader(h)
+  crop(h.bg, 22, 15.6, 52, 18.4) -- miolo da faixa das abas
+end
 
-panel.title = bar:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-panel.title:SetPoint("LEFT", logoBorder, "RIGHT", 8, 0)
-panel.title:SetTextColor(unpack(T.gold))
+-- título, centrado na placa vazia da arte (applyTheme põe na placa de cada tema)
+panel.title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+panel.title:SetWordWrap(false)
 panel.title:SetText(L.NAME)
 
-local close = CreateFrame("Button", nil, bar, "UIPanelCloseButton")
-close:SetSize(26, 26)
-close:SetPoint("RIGHT", 0, 0)
+-- fechar: o botão redondo já está pintado; aqui só a área de clique e o brilho
+local close = CreateFrame("Button", nil, panel)
+place(close, 83.5, 7, 90.5, 12)
+close:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
+close:GetHighlightTexture():SetDesaturated(true) -- o brilho padrão é azul; sem cor ele aceita o vermelho
+close:GetHighlightTexture():SetVertexColor(1, 0.12, 0.08)
 close:SetScript("OnClick", function() panel:Hide() end)
 
--- rodapé com créditos
-local footLine = solid(panel, "ARTWORK", T.border[1], T.border[2], T.border[3], 0.35)
-footLine:SetPoint("BOTTOMLEFT", 10, 26)
-footLine:SetPoint("BOTTOMRIGHT", -10, 26)
-footLine:SetHeight(1)
-local credits = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-credits:SetPoint("BOTTOM", 0, 9)
-credits:SetText(L.CREDITS:format("Oleg") .. "  •  |cff" .. "47cce6" .. "assantech.com.br|r")
+-- créditos na faixa do rodapé
+panel.creditBox = CreateFrame("Frame", nil, panel)
+panel.creditBox:SetHeight(20)
+panel.creditBox.pill = newPill(panel.creditBox, "BACKGROUND", 20)
+panel.credits = panel.creditBox:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+panel.credits:SetPoint("CENTER")
+panel.credits:SetTextColor(0.86, 0.84, 0.78)
 
 local scroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
-scroll:SetPoint("TOPLEFT", 10, -102)
 
--- busca em tempo real, logo abaixo das abas
-panel.search = CreateFrame("EditBox", nil, panel, "SearchBoxTemplate")
-panel.search:SetPoint("TOPLEFT", 18, -72)
-panel.search:SetPoint("TOPRIGHT", -14, -72)
-panel.search:SetHeight(22)
+-- busca em tempo real, no campo comprido pintado na arte (a lupa fica à direita, fora da área de texto)
+panel.search = CreateFrame("EditBox", nil, panel)
+place(panel.search, 14, 21, 82, 25.5)
+panel.search:SetFontObject("GameFontHighlightSmall")
 panel.search:SetAutoFocus(false)
-if panel.search.Instructions then panel.search.Instructions:SetText(L.SEARCH) end
-panel.search:HookScript("OnTextChanged", function()
+local searchHint = panel.search:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+searchHint:SetPoint("LEFT")
+searchHint:SetText(L.SEARCH)
+panel.search:SetScript("OnTextChanged", function(self)
+  searchHint:SetShown(self:GetText() == "")
   scroll:SetVerticalScroll(0)
   safe(panel.Refresh)
 end)
-scroll:SetPoint("BOTTOMRIGHT", -22, 32)
+panel.search:SetScript("OnEscapePressed", function(self) self:SetText(""); self:ClearFocus() end)
+panel.search:SetScript("OnEnterPressed", panel.search.ClearFocus)
+
 local content = CreateFrame("Frame", nil, scroll)
 content:SetSize(WIDTH, 1)
 scroll:SetScrollChild(content)
@@ -636,19 +675,17 @@ safe(function()
     if region:GetObjectType() == "Texture" and region ~= sb:GetThumbTexture() then region:SetAlpha(0) end
   end
   sb:ClearAllPoints()
-  sb:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 6, 0)
-  sb:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 6, 0)
+  sb:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 4, 0)
+  sb:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 4, 0)
   sb:SetWidth(5)
   local track = solid(sb, "BACKGROUND", 1, 1, 1, 0.06)
   track:SetAllPoints()
-  local thumb = sb:GetThumbTexture()
-  thumb:SetColorTexture(T.border[1], T.border[2], T.border[3], 0.85)
-  thumb:SetSize(5, 48)
+  panel.thumb = sb:GetThumbTexture()
+  panel.thumb:SetColorTexture(T.accent[1], T.accent[2], T.accent[3], 0.85)
+  panel.thumb:SetSize(5, 48)
 end)
 
 local rows, headers = {}, {}
--- origem das receitas que não são de treinador (código do Wowhead, ver Professions.lua)
-local SRC = { [5] = L.SRC_VENDOR, [4] = L.SRC_QUEST, [2] = L.SRC_DROP, [0] = L.SRC_OTHER }
 
 -- cabeçalho de grupo clicável: faixa colorida, [+/-] título à esquerda, valor total à direita
 local function getHeader(i)
@@ -656,8 +693,12 @@ local function getHeader(i)
   if h then return h end
   h = CreateFrame("Button", nil, content)
   h:SetSize(WIDTH, 26)
-  h.bg = solid(h, "BACKGROUND", 1, 1, 1, 0.05)
+  h.bg = h:CreateTexture(nil, "BACKGROUND")
   h.bg:SetAllPoints()
+  dressHeader(h)
+  h.tint = h:CreateTexture(nil, "BORDER") -- véu na cor do grupo, sumindo para a direita
+  h.tint:SetTexture(WHITE)
+  h.tint:SetAllPoints()
   h.strip = solid(h, "ARTWORK", 1, 1, 1, 1)
   h.strip:SetPoint("TOPLEFT")
   h.strip:SetPoint("BOTTOMLEFT")
@@ -669,7 +710,8 @@ local function getHeader(i)
   h:SetHighlightTexture(WHITE)
   h:GetHighlightTexture():SetVertexColor(1, 1, 1, 0.05)
   h.toggle = h:CreateTexture(nil, "OVERLAY")
-  h.toggle:SetSize(14, 14)
+  h.toggle:SetSize(12, 12)
+  h.toggle:SetTexture("Interface\\ChatFrame\\ChatFrameExpandArrow") -- aponta para a direita; girada, para baixo
   h.toggle:SetPoint("LEFT", 10, 0)
   h.text = h:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   h.text:SetPoint("LEFT", h.toggle, "RIGHT", 6, 0)
@@ -689,15 +731,24 @@ local function getRow(i)
   if r then return r end
   r = CreateFrame("Button", nil, content)
   r:SetSize(WIDTH, ROW_H - 2)
-  r.bg = r:CreateTexture(nil, "BACKGROUND")
-  r.bg:SetAllPoints()
-  r:SetHighlightTexture(WHITE)
-  r:GetHighlightTexture():SetVertexColor(T.accent[1], T.accent[2], T.accent[3], 0.10)
-  r.iconBorder = solid(r, "BORDER", 0, 0, 0, 1)
-  r.iconBorder:SetSize(30, 30)
-  r.iconBorder:SetPoint("LEFT", 6, 0)
-  r.icon = r:CreateTexture(nil, "ARTWORK")
-  r.icon:SetSize(28, 28)
+  r.pill = newPill(r, "BACKGROUND", ROW_H - 2)
+  r.glow = newPill(r, "HIGHLIGHT", ROW_H - 2, "ADD")
+  r.washL = r:CreateTexture(nil, "HIGHLIGHT")
+  r.washL:SetTexture(WHITE)
+  r.washL:SetBlendMode("ADD")
+  r.washL:SetPoint("TOPLEFT", 4, -4)
+  r.washL:SetPoint("BOTTOMRIGHT", r, "BOTTOM", 0, 4)
+  r.washR = r:CreateTexture(nil, "HIGHLIGHT")
+  r.washR:SetTexture(WHITE)
+  r.washR:SetBlendMode("ADD")
+  r.washR:SetPoint("TOPRIGHT", -4, -4)
+  r.washR:SetPoint("BOTTOMLEFT", r, "BOTTOM", 0, 4)
+  dressRow(r)
+  r.iconBorder = solid(r, "ARTWORK", 0, 0, 0, 1)
+  r.iconBorder:SetSize(26, 26)
+  r.iconBorder:SetPoint("LEFT", 14, 0)
+  r.icon = r:CreateTexture(nil, "OVERLAY")
+  r.icon:SetSize(24, 24)
   r.icon:SetPoint("CENTER", r.iconBorder)
   r.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) -- corta a borda padrão do ícone
   r.name = r:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -712,7 +763,7 @@ local function getRow(i)
   r.level:SetWordWrap(false)
   r.level:SetTextColor(unpack(T.muted))
   r.price = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  r.price:SetPoint("RIGHT", -8, 0)
+  r.price:SetPoint("RIGHT", -14, 0)
   r:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetSpellByID(self.spellID)
@@ -774,8 +825,13 @@ function panel:Refresh()
   for i = #profs + 1, #panel.tabs.prof do panel.tabs.prof[i]:Hide() end
   for _, b in ipairs(buttons) do
     local on = b.view == view
-    b.line:SetShown(on)
-    b.bg:SetColorTexture(on and T.accent[1] or 1, on and T.accent[2] or 1, on and T.accent[3] or 1, on and 0.16 or 0.04)
+    local dim = on and 1 or 0.55
+    if b.icon then -- profissão: só o ícone, com aro na cor da classe quando ativa
+      b.ring:SetColorTexture(on and T.accent[1] or 0, on and T.accent[2] or 0, on and T.accent[3] or 0, on and 1 or 0.7)
+    else
+      dressPill(b.pill, dim, dim, dim)
+      dressPill(b.glow, T.accent[1], T.accent[2], T.accent[3], on and 0.9 or 0)
+    end
     b.text:SetTextColor(unpack(on and T.text or T.muted))
     if b.icon then b.icon:SetDesaturated(not on) end
   end
@@ -808,14 +864,16 @@ function panel:Refresh()
     h.total:SetText(total and total > 0 and ((estimated and "|cff999999~|r " or "") .. coinText(total)) or "")
     h.total:SetAlpha(estimated and 0.5 or 1)
     h.toggle:SetShown(kind ~= nil)
-    h.toggle:SetTexture(collapsed[kind] and "Interface\\Buttons\\UI-PlusButton-Up" or "Interface\\Buttons\\UI-MinusButton-Up")
+    h.toggle:SetRotation(collapsed[kind] and 0 or -math.pi / 2)
+    h.toggle:SetVertexColor(color[1], color[2], color[3])
+    h.tint:SetGradient("HORIZONTAL", CreateColor(color[1], color[2], color[3], 0.30), CreateColor(color[1], color[2], color[3], 0))
     h:EnableMouse(kind ~= nil)
     h:Show()
     y = y + 32
   end
   -- kind: "now" (destaque verde), "soon" (ícone cinza), "learned" (apagado)
   local function addRows(list, kind)
-    for n, e in ipairs(list) do
+    for _, e in ipairs(list) do
       nRow = nRow + 1
       local r = getRow(nRow)
       r.spellID, r.teach, r.talent = e.id, e.teach, e.talent
@@ -849,15 +907,6 @@ function panel:Refresh()
         r.price:SetText("|cff999999~|r " .. coinText(e.cost)) -- veio do Wowhead, ainda não conferido
       else
         r.price:SetText(coinText(e.cost))
-      end
-      if e.talent then
-        r.bg:SetColorTexture(1, 1, 1, n % 2 == 0 and 0.035 or 0.01)
-      elseif e.teach then
-        r.bg:SetColorTexture(T.teach[1], T.teach[2], T.teach[3], n % 2 == 0 and 0.12 or 0.08)
-      elseif kind == "now" then
-        r.bg:SetColorTexture(T.now[1], T.now[2], T.now[3], n % 2 == 0 and 0.10 or 0.06)
-      else
-        r.bg:SetColorTexture(1, 1, 1, n % 2 == 0 and 0.035 or 0.01)
       end
       r:Show()
       y = y + ROW_H
@@ -895,9 +944,14 @@ function panel:Refresh()
 end
 
 -- menu "Filtro" com checkboxes (API de menu do cliente moderno)
-local filter = CreateFrame("DropdownButton", nil, panel, "WowStyle1FilterDropdownTemplate")
-filter:SetPoint("TOPRIGHT", -12, -42)
-filter:SetText(L.FILTER)
+-- sem modelo: o campo com a seta já está pintado na arte; aqui só o texto e a área de clique
+local filter = CreateFrame("DropdownButton", nil, panel)
+place(filter, 69, 14.5, 89, 19.5)
+filter:SetHighlightTexture(WHITE)
+filter:GetHighlightTexture():SetVertexColor(1, 1, 1, 0.05)
+local filterText = filter:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+filterText:SetPoint("LEFT", 12, 0)
+filterText:SetText(L.FILTER)
 filter:SetupMenu(function(_, root)
   -- o jogo monta o menu já na criação do botão, antes de as configurações salvas carregarem
   if not EAD_SkillPreviewDB then return end
@@ -917,25 +971,33 @@ filter:SetupMenu(function(_, root)
     safe(panel.Refresh)
   end)
   opt(L.TRAINER_ONLY, "trainerOnly") -- abas de profissão: esconde receitas de vendedor, missão e drop
+  -- tema da janela: um por classe, com o nome da classe no idioma do jogo
+  local themes = root:CreateButton(L.THEME)
+  local items = {}
+  for key in pairs(THEMES) do items[#items + 1] = { key, (LOCALIZED_CLASS_NAMES_MALE or {})[key] or key } end
+  table.sort(items, function(x, y) return x[2] < y[2] end) -- ordem alfabética no idioma do jogo
+  for _, item in ipairs(items) do
+    local key = item[1]
+    themes:CreateRadio(item[2], function() return themeKey() == key end, function() panel.SetTheme(key) end)
+  end
 end)
 
 -- seletor Personagem | Pet | profissões, na mesma linha do Filtro
 panel.tabs = CreateFrame("Frame", nil, panel)
 panel.tabs:SetSize(190, 24)
-panel.tabs:SetPoint("TOPLEFT", 12, -42)
+panel.tabs:SetPoint("TOPLEFT", PW * 0.115, -PH * 0.145 - 4) -- dentro da faixa vazia da arte
 local function tabButton(text, view, x)
   local b = CreateFrame("Button", nil, panel.tabs)
   b.view = view
   b:SetSize(76, 24)
   b:SetPoint("LEFT", x, 0)
-  b.bg = solid(b, "BACKGROUND", 1, 1, 1, 0.04)
-  b.bg:SetAllPoints()
-  b.line = solid(b, "ARTWORK", T.accent[1], T.accent[2], T.accent[3], 1) -- sublinhado da aba ativa
-  b.line:SetPoint("BOTTOMLEFT")
-  b.line:SetPoint("BOTTOMRIGHT")
-  b.line:SetHeight(2)
-  b:SetHighlightTexture(WHITE)
-  b:GetHighlightTexture():SetVertexColor(1, 1, 1, 0.06)
+  if text ~= "" then
+    b.pill = newPill(b, "BACKGROUND", 24)
+    b.glow = newPill(b, "BORDER", 24, "ADD")
+  else
+    b.ring = solid(b, "BACKGROUND", 0, 0, 0, 0.7)
+    b.ring:SetAllPoints()
+  end
   b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   b.text:SetPoint("CENTER", 0, 1)
   b.text:SetText(text)
@@ -958,9 +1020,8 @@ function panel.profTab(i)
   b:SetSize(24, 24)
   b.icon = b:CreateTexture(nil, "ARTWORK")
   b.icon:SetPoint("TOPLEFT", 2, -2)
-  b.icon:SetPoint("BOTTOMRIGHT", -2, 3)
+  b.icon:SetPoint("BOTTOMRIGHT", -2, 2)
   b.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-  b.line:SetDrawLayer("OVERLAY")
   b:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_TOP")
     GameTooltip:AddLine(self.tip or "")
@@ -971,7 +1032,42 @@ function panel.profTab(i)
   return b
 end
 
-panel:SetScript("OnShow", function() safe(panel.Refresh) end)
+-- Veste a janela com o tema do personagem: arte, cor de destaque e a área da lista medida nessa arte.
+local function applyTheme()
+  local th = THEMES[themeKey()]
+  local a, l = th.accent, th.list
+  T.accent = a
+  panel.art:SetTexture(ART .. th.art)
+  panel.title:SetTextColor(a[1], a[2], a[3])
+  if panel.thumb then panel.thumb:SetColorTexture(a[1], a[2], a[3], 0.85) end
+  place(scroll, l[1] + 1.2, l[2] + 1, l[3] - 3, l[4] - 1) -- folga da moldura; à direita cabe a barra de rolagem
+  WIDTH = PW * (l[3] - l[1] - 4.2) / 100
+  content:SetWidth(WIDTH)
+  for _, r in ipairs(rows) do
+    r:SetWidth(WIDTH)
+    dressRow(r)
+  end
+  local hex = ("|cff%02x%02x%02x"):format(math.floor(a[1] * 255), math.floor(a[2] * 255), math.floor(a[3] * 255))
+  panel.credits:SetText(L.CREDITS:format(hex .. "Oleg|r") .. " " .. hex .. "• assantech.com.br|r")
+  dressPill(panel.creditBox.pill)
+  panel.creditBox:SetWidth(panel.credits:GetStringWidth() + 2 * panel.creditBox.pill.capW)
+  panel.creditBox:ClearAllPoints()
+  panel.creditBox:SetPoint("CENTER", panel, "TOPLEFT", PW * th.foot[1] / 100, -PH * th.foot[2] / 100)
+  local ti = th.title
+  place(panel.title, ti[1] - ti[3], ti[2] - 2.3, ti[1] + ti[3], ti[2] + 2.3)
+  for _, h in ipairs(headers) do
+    h:SetWidth(WIDTH)
+    dressHeader(h)
+  end
+end
+
+function panel.SetTheme(key)
+  EAD_SkillPreviewDB.themes[charKey()] = key
+  safe(applyTheme)
+  safe(panel.Refresh)
+end
+
+panel:SetScript("OnShow", function() safe(applyTheme); safe(panel.Refresh) end)
 
 local function toggle()
   if panel:IsShown() then panel:Hide() else panel:Show() end
@@ -1083,6 +1179,7 @@ f:SetScript("OnEvent", function(_, event, arg1)
     EAD_SkillPreviewDB.petSpell = EAD_SkillPreviewDB.petSpell or {} -- magia do caçador -> magia no livro do pet
     EAD_SkillPreviewDB.scan = EAD_SkillPreviewDB.scan or {} -- cópia bruta dos treinadores de profissão (/ead scan)
     EAD_SkillPreviewDB.discount = EAD_SkillPreviewDB.discount or {} -- personagem -> profissão -> % do preço cheio
+    EAD_SkillPreviewDB.themes = EAD_SkillPreviewDB.themes or {} -- personagem -> tema escolhido (sem escolha: o da classe)
     -- v7: correções de profissão guardavam o preço já com desconto; agora o desconto é aplicado na hora de mostrar
     if (EAD_SkillPreviewDB.fixVersion or 1) < 7 then
       for _, t in ipairs({ EAD_SkillPreviewDB.fix, EAD_SkillPreviewDB.seen }) do

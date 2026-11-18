@@ -14,6 +14,7 @@ ns.L = {
   PICK_FILTER = "Check something in the Filter.",
   TITLE_LEVEL = "%s: level %d",
   FILTER = "Filter",
+  THEME = "Theme",
   UPCOMING_MAX = "Upcoming (up to max level)",
   ALL = "All abilities",
   CHARACTER = "Character",

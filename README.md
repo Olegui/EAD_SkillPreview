@@ -10,7 +10,7 @@ An addon for **World of Warcraft: Forever** that shows, without visiting the tra
 
 ### Features
 
-- **Themed window**, opened from the minimap button or with `/ead`.
+- **Themed window**, opened from the minimap button or with `/ead`. Nine hand-painted themes, one per class: the window starts in your class's theme and you can pick another under **Filter → Theme**.
 - **Groups:** Available, Upcoming (up to max level) and Already learned, each one collapsible and with its total cost on the right.
 - **Filter** with checkboxes to choose which groups are shown.
 - **Pet abilities** for Hunters (pet trainer) and Warlocks (demon grimoires), in their own tab.
@@ -68,7 +68,7 @@ Addon para **World of Warcraft: Forever** que mostra, sem precisar ir ao treinad
 
 ### Funcionalidades
 
-- **Janela com tema próprio**, aberta pelo botão do minimapa ou com `/ead`.
+- **Janela com tema próprio**, aberta pelo botão do minimapa ou com `/ead`. São nove temas pintados, um por classe: a janela abre no tema da sua classe e dá para escolher outro em **Filtro → Tema**.
 - **Grupos:** Disponíveis, Próximas (até o nível máximo) e Já aprendidas, cada um podendo ser minimizado e com o valor total à direita.
 - **Filtro** com caixas de marcar para escolher quais grupos aparecem.
 - **Habilidades de pet** para caçador (treinador de pet) e bruxo (grimórios de demônio), em uma aba própria.
