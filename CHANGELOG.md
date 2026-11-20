@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.2
+
+- Corrigido o erro "attempt to index global 'SRC'" ao mostrar receitas de profissão.
+- A janela não se mistura mais com a de outros addons: ao abrir ou clicar nela, ela vem inteira para a frente.
+
 ## 1.2.1
 
 - Paladino com arte nova: armadura de aço escuro com filetes dourados, martelo, estandarte, manopla, tomo e escudo.

@@ -2,6 +2,8 @@
 -- usando a lista do Wowhead (Data.lua). O jogo diz o que você já aprendeu.
 local ADDON, ns = ...
 local L = ns.L -- textos no idioma do jogo (Locales/*.lua)
+-- origem da receita (códigos de Professions.lua); treinador (6) não ganha rótulo
+local SRC = { [5] = L.SRC_VENDOR, [4] = L.SRC_QUEST, [2] = L.SRC_DROP, [0] = L.SRC_OTHER }
 local PREFIX = "|cff33ff99" .. L.NAME .. ":|r "
 local ICON = "Interface\\AddOns\\EAD_SkillPreview\\Art\\Icon"
 
@@ -558,6 +560,9 @@ local panel = CreateFrame("Frame", "EAD_SkillPreviewPanel", UIParent)
 panel:SetSize(PW, PH)
 panel:SetPoint("CENTER")
 panel:SetFrameStrata("HIGH")
+-- toplevel: um clique sobe a janela inteira (filhos juntos) acima das outras do HIGH, sem intercalar com outro addon
+panel:SetToplevel(true)
+panel:HookScript("OnShow", panel.Raise)
 panel:SetHitRectInsets(PW * 0.04, PW * 0.07, PH * 0.04, PH * 0.06) -- a margem transparente em volta não pega clique
 panel:SetMovable(true)
 panel:EnableMouse(true)
